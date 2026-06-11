@@ -1,0 +1,124 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile inside the university lost and found system",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "User login ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Real student name"
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Student ID number"
+        },
+        "email": {
+          "type": "string",
+          "description": "Student email address"
+        },
+        "password": {
+          "type": "string",
+          "description": "Password"
+        },
+        "isAdmin": {
+          "type": "boolean",
+          "description": "True if the user is a system administrator"
+        }
+      },
+      "required": ["id", "name", "studentId", "email", "password"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Lost or found item report",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["found", "lost"]
+        },
+        "reporterName": {
+          "type": "string"
+        },
+        "reporterStudentId": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array"
+        },
+        "description": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "views": {
+          "type": "number"
+        },
+        "resolved": {
+          "type": "boolean"
+        },
+        "authorId": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "title", "type", "reporterName", "reporterStudentId", "location", "tags", "description", "createdAt", "views", "resolved", "authorId"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Reply comment to loss/find reports",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "postId": {
+          "type": "string"
+        },
+        "authorId": {
+          "type": "string"
+        },
+        "authorName": {
+          "type": "string"
+        },
+        "authorStudentId": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "postId", "authorId", "authorName", "authorStudentId", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "University members list"
+    },
+    "posts/{postId}": {
+      "schema": "Post",
+      "description": "Loss and found item posts board"
+    },
+    "comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Interactions comments list for posts"
+    }
+  }
+}

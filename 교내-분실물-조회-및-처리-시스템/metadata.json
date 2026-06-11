@@ -1,0 +1,6 @@
+{
+  "name": "교내 분실물 조회 및 처리 시스템",
+  "description": "교내에서 습득하거나 분실한 물건을 등록하고, 검색 및 댓글을 통해 소통하는 학내 분실물 커뮤니티입니다.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
