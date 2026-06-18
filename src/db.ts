@@ -45,26 +45,20 @@ export const getUsers = async (adminId?: string): Promise<User[]> => {
  */
 export const registerUser = async (user: User): Promise<{ success: boolean; message: string }> => {
   try {
-    // 1. Check ID (custom unique profile ID) duplicated
-    const { data: existingProfile, error: profileCheckError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', user.id)
-      .maybeSingle();
+    // 1. Check ID & Email duplication via a secure SECURITY DEFINER RPC to prevent RLS lookup bypass blockages
+    const { data: dupResult, error: dupError } = await supabase
+      .rpc('check_id_email_exists', { 
+        check_id: user.id.toLowerCase(), 
+        check_email: user.email.toLowerCase() 
+      });
 
-    if (existingProfile) {
-      return { success: false, message: '동일한 아이디가 이미 사용 중입니다.' };
-    }
-
-    // Checking email duplicated
-    const { data: existingEmail } = await supabase
-      .from('profiles')
-      .select('email')
-      .eq('email', user.email)
-      .maybeSingle();
-
-    if (existingEmail) {
-      return { success: false, message: '동일한 이메일이 이미 존재합니다.' };
+    if (!dupError && dupResult) {
+      if (dupResult.id_exists) {
+        return { success: false, message: '동일한 아이디가 이미 사용 중입니다.' };
+      }
+      if (dupResult.email_exists) {
+        return { success: false, message: '동일한 이메일이 이미 존재합니다.' };
+      }
     }
 
     // 2. Register in Supabase Auth
@@ -123,16 +117,13 @@ export const loginUser = async (
     
     // If input is not an email layout, seek the corresponding email in profiles
     if (!idOrEmail.includes('@')) {
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', idOrEmail.toLowerCase())
-        .maybeSingle();
+      const { data: rpcEmail, error: rpcError } = await supabase
+        .rpc('get_email_by_custom_id', { user_custom_id: idOrEmail.toLowerCase() });
       
-      if (profileError || !profileData) {
+      if (rpcError || !rpcEmail) {
         return { success: false, message: '존재하지 않는 사용자 아이디입니다.' };
       }
-      email = profileData.email;
+      email = rpcEmail;
     }
 
     // Sign in via Supabase Auth
