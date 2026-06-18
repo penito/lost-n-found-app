@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Post, CATEGORY_TAGS, PostType, Report } from '../types';
-import { loginUser, registerUser, logoutUser, updatePost, deletePost, getUsers, deleteUser, updateUserProfile, getReports, resolveReport, deleteReport, deleteComment, findCustomIdByEmail, sendPasswordResetEmail } from '../db';
-import { Lock, UserCheck, Mail, BookOpen, Key, LogOut, CheckCircle, AlertCircle, Edit2, Trash2, Tag, MapPin, Eye, FileText, Compass, Camera, Image, Smile, Palette, ShieldAlert, Check, X, Sparkles } from 'lucide-react';
+import { loginUser, registerUser, logoutUser, updatePost, deletePost, updateUserProfile, deleteComment, findCustomIdByEmail, sendPasswordResetEmail } from '../db';
+import { Lock, UserCheck, Mail, BookOpen, Key, LogOut, CheckCircle, AlertCircle, Edit2, Trash2, Tag, MapPin, Eye, FileText, Compass, Camera, Image, Smile, Palette, Check, X, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface MyInfoTabProps {
@@ -27,10 +27,6 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
   const [editBio, setEditBio] = useState('');
   const [editAvatarEmoji, setEditAvatarEmoji] = useState('🎒');
   const [editProfileColor, setEditProfileColor] = useState('indigo');
-
-  // Admin Reports List States
-  const [reports, setReports] = useState<Report[]>([]);
-  const [loadingReports, setLoadingReports] = useState(false);
 
   // Input states for Signup
   const [signupId, setSignupId] = useState('');
@@ -95,42 +91,6 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
     }
   };
 
-  // Admin User List States
-  const [users, setUsers] = useState<User[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  
-  // Custom dialog to confirm force deleting a user
-  const [userDeleteId, setUserDeleteId] = useState<string | null>(null);
-  const [userDeleteName, setUserDeleteName] = useState<string>('');
-
-  const loadUsersList = async () => {
-    if (activeUser?.isAdmin) {
-      setLoadingUsers(true);
-      try {
-        const list = await getUsers(activeUser.id);
-        setUsers(list || []);
-      } catch (err) {
-        console.error('Failed to load user records list:', err);
-      } finally {
-        setLoadingUsers(false);
-      }
-    }
-  };
-
-  const loadReportsList = async () => {
-    if (activeUser?.isAdmin) {
-      setLoadingReports(true);
-      try {
-        const list = await getReports(activeUser.id);
-        setReports(list || []);
-      } catch (err) {
-        console.error('Failed to load reports queue:', err);
-      } finally {
-        setLoadingReports(false);
-      }
-    }
-  };
-
   useEffect(() => {
     if (activeUser) {
       setEditProfileName(activeUser.name || '');
@@ -139,18 +99,6 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
       setEditProfileColor(activeUser.profileColor || 'indigo');
     }
   }, [activeUser, isEditingProfile]);
-
-  useEffect(() => {
-    if (activeUser?.isAdmin) {
-      loadUsersList();
-      loadReportsList();
-    }
-  }, [activeUser]);
-
-  const handleForceDeleteUser = (id: string, name: string) => {
-    setUserDeleteId(id);
-    setUserDeleteName(name);
-  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -181,69 +129,6 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
       }
     } catch (err: any) {
       setAlert({ type: 'error', text: err.message || '프로필 변경 요청 도중 통신 실패가 발생했습니다.' });
-    }
-  };
-
-  const handleResolveReport = async (reportId: string) => {
-    if (activeUser?.isAdmin) {
-      try {
-        const res = await resolveReport(reportId, activeUser.id);
-        if (res.success) {
-          setAlert({ type: 'success', text: '신고 항목이 처리 완료되었습니다.' });
-          await loadReportsList();
-          setTimeout(() => setAlert(null), 1500);
-        } else {
-          setAlert({ type: 'error', text: res.message });
-        }
-      } catch {
-        setAlert({ type: 'error', text: '처리 과정 중 에러가 발생했습니다.' });
-      }
-    }
-  };
-
-  const handleDeleteReport = async (reportId: string) => {
-    if (activeUser?.isAdmin) {
-      try {
-        const res = await deleteReport(reportId, activeUser.id);
-        if (res.success) {
-          setAlert({ type: 'success', text: '신고 접수 내역이 반려(기각)되었습니다.' });
-          await loadReportsList();
-          setTimeout(() => setAlert(null), 1500);
-        } else {
-          setAlert({ type: 'error', text: res.message });
-        }
-      } catch {
-        setAlert({ type: 'error', text: '신고 기각 과정 중 에러가 발생했습니다.' });
-      }
-    }
-  };
-
-  const handleAdminDeleteReportedItem = async (report: Report) => {
-    if (!activeUser?.isAdmin) return;
-    try {
-      if (report.targetType === 'post') {
-        const delRes = await deletePost(report.targetId);
-        if (delRes) {
-          setAlert({ type: 'success', text: '신고 대상 게시글을 영구 삭제했습니다.' });
-        } else {
-          setAlert({ type: 'error', text: '해당 게시글이 이미 삭제되었거나 처리 실패했습니다.' });
-        }
-      } else {
-        const delRes = await deleteComment(report.targetId);
-        if (delRes) {
-          setAlert({ type: 'success', text: '신고 대상 댓글을 영구 제명했습니다.' });
-        } else {
-          setAlert({ type: 'error', text: '해당 댓글이 이미 삭제되었거나 처리 실패했습니다.' });
-        }
-      }
-      
-      // Auto-delete the report after removing the offending element
-      await deleteReport(report.id, activeUser.id);
-      await loadReportsList();
-      onPostsUpdated();
-      setTimeout(() => setAlert(null), 1550);
-    } catch {
-      setAlert({ type: 'error', text: '오류가 발생하여 작업을 중단했습니다.' });
     }
   };
 
@@ -459,28 +344,8 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
     }
   };
 
-  const confirmDeleteUserAction = async () => {
-    if (userDeleteId && activeUser) {
-      try {
-        const res = await deleteUser(userDeleteId, activeUser.id);
-        if (res.success) {
-          setUserDeleteId(null);
-          setAlert({ type: 'success', text: `${userDeleteName} 학우 계정이 성공적으로 강제 탈퇴 처리되었습니다.` });
-          await loadUsersList();
-          onPostsUpdated();
-        } else {
-          setAlert({ type: 'error', text: res.message || '사용자 삭제 처리가 실패했습니다.' });
-        }
-      } catch (err: any) {
-        setAlert({ type: 'error', text: err.message || '사용자 삭제 과정 중 오류가 발생했습니다.' });
-      }
-    }
-  };
-
-  // Filter posts based on user authority (admin sees all posts, regular user sees own posts)
-  const myPosts = activeUser?.isAdmin
-    ? posts
-    : posts.filter(post => activeUser && post.authorId === activeUser.id);
+  // Filter posts based on user authority
+  const myPosts = posts.filter(post => activeUser && post.authorId === activeUser.id);
 
   return (
     <div id="my-info-tab-wrapper" className="max-w-2xl mx-auto py-4 px-1">
@@ -1172,182 +1037,6 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
             )}
           </div>
 
-          {/* D. ADMIN PANEL: USER MANAGEMENT CONTROLS */}
-          {activeUser?.isAdmin && (
-            <div id="admin-user-mgmt-bento" className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 mb-5 pb-3 border-b border-slate-100">
-                <span className="p-1 px-2.5 bg-rose-50 text-rose-600 rounded-md text-xs font-black">Admin Mode</span>
-                👥 전체 가입 학우 계정 목록 조회 및 계정 삭제
-                <span className="bg-rose-50 text-rose-700 text-xs font-bold px-2.5 py-0.5 rounded-full shrink-0">
-                  {users.length}명
-                </span>
-              </h3>
-
-              {loadingUsers ? (
-                <p className="text-xs text-slate-400 py-6 text-center animate-pulse">회원 계정 리스트를 가져오는 중...</p>
-              ) : users.length === 0 ? (
-                <p className="text-xs text-slate-400 py-6 text-center">조회 가능한 다른 가입 학우가 없습니다.</p>
-              ) : (
-                <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto pr-1 space-y-3">
-                  {users.map((usr) => (
-                    <div key={usr.id} className="flex items-center justify-between py-3 px-1 hover:bg-slate-50 rounded-xl transition-all">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-bold text-slate-800">{usr.name}</span>
-                          <span className="text-[10px] bg-slate-100 text-slate-500 font-mono px-1.5 py-0.5 rounded-md">
-                            ID: {usr.id}
-                          </span>
-                          {usr.isAdmin && (
-                            <span className="text-[10px] bg-rose-50 text-rose-600 font-black px-1.5 py-0.5 rounded-md border border-rose-100">
-                              관리자
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-400 font-mono">
-                          학번: {usr.studentId} | 이메일: {usr.email}
-                        </p>
-                      </div>
-
-                      {usr.id !== activeUser.id && (
-                        <button
-                          type="button"
-                          onClick={() => handleForceDeleteUser(usr.id, usr.name)}
-                          className="p-1.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-[10px] rounded-lg transition-all cursor-pointer flex items-center gap-1 shrink-0 border border-rose-150"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          계정 삭제
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* E. ADMIN PANEL: REPORTED ITEMS AUDIT CONTROLS */}
-          {activeUser?.isAdmin && (
-            <div id="admin-reports-mgmt-bento" className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 mt-6">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 mb-5 pb-3 border-b border-slate-100">
-                <ShieldAlert className="w-5 h-5 text-rose-600" />
-                🚨 교내 신고 항목 및 원문 검토 대기열
-                <span className="bg-rose-50 text-rose-700 text-xs font-bold px-2.5 py-0.5 rounded-full shrink-0">
-                  {reports.length}건
-                </span>
-              </h3>
-
-              {loadingReports ? (
-                <p className="text-xs text-slate-400 py-6 text-center animate-pulse">신고 접수 내역을 불러오는 중...</p>
-              ) : reports.length === 0 ? (
-                <div className="text-center py-8 text-slate-450 text-xs font-medium">
-                  <p>정상 상태입니다! 접수된 혹은 검토 대기 중인 신고 항목이 없습니다. ✨</p>
-                </div>
-              ) : (
-                <div className="space-y-4 max-h-96 overflow-y-auto pr-1">
-                  {reports.map((report) => (
-                    <div
-                      key={report.id}
-                      className={`border rounded-2xl p-4 transition-all ${
-                        report.resolved
-                          ? 'border-slate-100 bg-slate-50 opacity-60'
-                          : 'border-rose-100 bg-rose-50/20 shadow-xs'
-                      }`}
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2.5 mb-2.5">
-                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-md uppercase ${
-                          report.targetType === 'post'
-                            ? 'bg-amber-150 bg-amber-50 text-amber-800'
-                            : 'bg-indigo-50 text-indigo-800'
-                        }`}>
-                          {report.targetType === 'post' ? '게시글 신고' : '댓글 신고'}
-                        </span>
-
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          {new Date(report.createdAt).toLocaleString()}
-                        </span>
-                      </div>
-
-                      <div className="space-y-2 mb-4">
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-400">신고 접수 유형 / 사유</p>
-                          <p className="text-xs font-bold text-rose-700 mt-0.5">
-                            {report.reason}
-                            {report.customReason && <span className="text-slate-600 font-medium block mt-1 bg-white p-2 rounded-lg border border-slate-150">{report.customReason}</span>}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-400 font-mono">신고 대상 원문 / 제목</p>
-                          <p className="text-xs text-slate-800 font-medium mt-0.5 max-h-20 overflow-y-auto bg-white p-2 rounded-lg border border-slate-150 line-clamp-3">
-                            {report.targetTitleOrContent}
-                          </p>
-                        </div>
-
-                        <div className="text-[10px] text-slate-450">
-                          <span>신고자 ID / 이름: {report.reporterId} ({report.reporterName})</span>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-slate-100 pt-3">
-                        <span className="text-xs font-bold">
-                          {report.resolved ? (
-                            <span className="text-emerald-600 flex items-center gap-1">
-                              <Check className="w-3.5 h-3.5" /> 처리완료
-                            </span>
-                          ) : (
-                            <span className="text-amber-600">진행중 (검토대기)</span>
-                          )}
-                        </span>
-
-                        {!report.resolved && (
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleAdminDeleteReportedItem(report)}
-                              className="p-1 px-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
-                              title="신고대상 원본 콘텐츠를 완전히 삭제합니다."
-                            >
-                              <Trash2 className="w-3 h-3" />
-                              대상 콘텐츠 삭제
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleResolveReport(report.id)}
-                              className="p-1 px-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-md text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
-                              title="이 신고건을 해결 처리합니다."
-                            >
-                              <Check className="w-3 h-3" />
-                              해결 처리
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteReport(report.id)}
-                              className="p-1 px-2.5 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded-md text-[10px] font-medium transition-all cursor-pointer flex items-center gap-1"
-                              title="신고가 적합하지 않아 기각합니다."
-                            >
-                              <X className="w-3 h-3" />
-                              기각
-                            </button>
-                          </div>
-                        )}
-                        
-                        {report.resolved && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteReport(report.id)}
-                            className="p-1 px-2 text-slate-400 hover:text-slate-600 rounded-md text-[10px] transition-all cursor-pointer font-bold"
-                            title="신고 이력 내역에서 제거"
-                          >
-                            이력 삭제
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
         </div>
       )}
@@ -1558,56 +1247,6 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
                   className="flex-1 bg-rose-600 hover:bg-rose-700 py-3 rounded-xl text-xs font-bold text-white transition-all shadow-md shadow-rose-100 cursor-pointer"
                 >
                   삭제 완료
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Custom Dialog for Force deleting a user */}
-      <AnimatePresence>
-        {userDeleteId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setUserDeleteId(null)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full border border-slate-100 shadow-xl relative z-10 space-y-6 text-slate-850"
-            >
-              <div className="flex items-center gap-3 text-rose-600">
-                <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center">
-                  <Trash2 className="w-5 h-5 text-rose-600" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-900">학우 계정을 강제 삭제하시겠습니까?</h3>
-              </div>
-              
-              <p className="text-slate-500 text-xs leading-relaxed">
-                <strong className="text-slate-900">{userDeleteName} ({userDeleteId})</strong> 학우의 계정을 정말로 강제 삭제하시겠습니까? 
-                이 작업은 즉시 데이터베이스에 반영되며, 해당 사용자가 작성한 모든 게시글과 내용 및 댓글들이 함께 <strong>영구 삭제</strong>됩니다. 이 동작은 복구할 수 없습니다.
-              </p>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setUserDeleteId(null)}
-                  className="flex-1 bg-slate-100 hover:bg-slate-200 py-3 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-80 transition-all cursor-pointer"
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  onClick={confirmDeleteUserAction}
-                  className="flex-1 bg-rose-600 hover:bg-rose-700 py-3 rounded-xl text-xs font-bold text-white transition-all shadow-md shadow-rose-100 cursor-pointer"
-                >
-                  계정 삭제 확정
                 </button>
               </div>
             </motion.div>

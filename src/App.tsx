@@ -5,11 +5,12 @@ import RegisterTab from './components/RegisterTab';
 import SearchTab from './components/SearchTab';
 import MyInfoTab from './components/MyInfoTab';
 import PostDetail from './components/PostDetail';
-import { Search, PlusCircle, User as UserIcon, LogIn, Sparkles, BookOpen, Clock } from 'lucide-react';
+import AdminTab from './components/AdminTab';
+import { Search, PlusCircle, User as UserIcon, LogIn, Sparkles, BookOpen, Clock, ShieldAlert } from 'lucide-react';
 // @ts-ignore
 import jkLogo from '../JK.png';
 
-type TabType = 'search' | 'register' | 'myinfo';
+type TabType = 'search' | 'register' | 'myinfo' | 'admin';
 
 export default function App() {
   // Navigation states
@@ -172,7 +173,7 @@ export default function App() {
 
       {/* 2. THE THREE PERSISTENT TABS NAVIGATION BAR (Click / Touch compliant) */}
       <nav className="bg-white border-b border-slate-100 py-3 sticky top-18 z-30 shadow-xs">
-        <div className="max-w-xl mx-auto px-4 flex items-center justify-between gap-1.5">
+        <div className="max-w-2xl mx-auto px-4 flex items-center justify-between gap-1.5">
           
           <button
             type="button"
@@ -215,6 +216,22 @@ export default function App() {
             <UserIcon className="w-4 h-4 text-indigo-500" />
             <span>내 정보 관리</span>
           </button>
+
+          {activeUser?.isAdmin && (
+            <button
+              type="button"
+              id="tab-btn-admin"
+              onClick={() => { setActiveTab('admin'); setSelectedPost(null); }}
+              className={`flex-1 px-4 py-2.5 rounded-full font-semibold text-xs sm:text-sm border transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
+                activeTab === 'admin'
+                  ? 'bg-rose-50 text-rose-700 border-rose-100 shadow-xs'
+                  : 'bg-white border-slate-100 text-slate-500 hover:bg-slate-50 hover:text-slate-750'
+              }`}
+            >
+              <ShieldAlert className="w-4 h-4 text-rose-500" />
+              <span>관리자(Admin)</span>
+            </button>
+          )}
 
         </div>
       </nav>
@@ -262,6 +279,16 @@ export default function App() {
                 posts={posts}
                 onLoginSuccess={handleLoginSuccess}
                 onLogout={handleLogout}
+                onViewPost={handleSelectPost}
+                onPostsUpdated={handlePostsUpdated}
+              />
+            )}
+
+            {/* ADMIN TAB */}
+            {activeTab === 'admin' && activeUser?.isAdmin && (
+              <AdminTab
+                activeUser={activeUser}
+                posts={posts}
                 onViewPost={handleSelectPost}
                 onPostsUpdated={handlePostsUpdated}
               />

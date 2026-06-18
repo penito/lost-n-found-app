@@ -11,11 +11,35 @@ export const initializeDB = () => {
 // --- USER RECRUITMENT & SESSION CONTROLLER ---
 
 /**
+ * Helper to assert is_admin check for a user on the database level
+ */
+export const assertIsAdmin = async (userId: string): Promise<boolean> => {
+  if (!userId) return false;
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', userId)
+      .maybeSingle();
+    
+    if (error || !data) return false;
+    return !!data.is_admin;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Retrieves list of all registered member accounts from Supabase profiles.
  * This is restricted to system administrators.
  */
 export const getUsers = async (adminId?: string): Promise<User[]> => {
   try {
+    if (!adminId || !(await assertIsAdmin(adminId))) {
+      console.error('getUsers: permission denied for user', adminId);
+      return [];
+    }
+
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -195,6 +219,27 @@ export const deleteUser = async (
   adminId: string
 ): Promise<{ success: boolean; message: string }> => {
   try {
+    // 1. Verify that the requester is a qualified admin
+    if (!adminId || !(await assertIsAdmin(adminId))) {
+      return { success: false, message: '보안 권한 등급 검증에 실패했습니다. 관리자 권한을 가진 계정만 회원 삭제가 허용됩니다.' };
+    }
+
+    // 2. Query target profile to prevent deleting admin accounts
+    const { data: targetProfile, error: targetError } = await supabase
+      .from('profiles')
+      .select('is_admin, name')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (targetError) throw targetError;
+    if (!targetProfile) {
+      return { success: false, message: '삭제할 대상 회원이 존재하지 않습니다.' };
+    }
+
+    if (targetProfile.is_admin) {
+      return { success: false, message: `보안 규칙 보호: 관리자 등급 계정(${targetProfile.name})은 삭제할 수 없도록 강한 보호 규칙이 작동 중입니다.` };
+    }
+
     // Delete profile (cascading columns handles dependent rows based on foreign key/on delete cascade)
     const { error: profileError } = await supabase
       .from('profiles')
@@ -623,6 +668,11 @@ export const submitReport = async (data: {
  */
 export const getReports = async (adminId: string): Promise<Report[]> => {
   try {
+    if (!adminId || !(await assertIsAdmin(adminId))) {
+      console.error('getReports: permission denied for user', adminId);
+      return [];
+    }
+
     const { data, error } = await supabase
       .from('reports')
       .select('*')
@@ -654,6 +704,10 @@ export const getReports = async (adminId: string): Promise<Report[]> => {
  */
 export const resolveReport = async (reportId: string, adminId: string): Promise<{ success: boolean; message: string }> => {
   try {
+    if (!adminId || !(await assertIsAdmin(adminId))) {
+      return { success: false, message: '권한 검증 오류: 관리자 계정만 신고 처리를 수정할 수 있습니다.' };
+    }
+
     const { error } = await supabase
       .from('reports')
       .update({ resolved: true })
@@ -671,6 +725,10 @@ export const resolveReport = async (reportId: string, adminId: string): Promise<
  */
 export const deleteReport = async (reportId: string, adminId: string): Promise<{ success: boolean; message: string }> => {
   try {
+    if (!adminId || !(await assertIsAdmin(adminId))) {
+      return { success: false, message: '권한 검증 오류: 관리자 계정만 신고 내역을 제어하거나 기각할 수 있습니다.' };
+    }
+
     const { error } = await supabase
       .from('reports')
       .delete()
