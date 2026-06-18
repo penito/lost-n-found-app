@@ -682,3 +682,62 @@ export const deleteReport = async (reportId: string, adminId: string): Promise<{
     return { success: false, message: error.message || '신고 삭제 실패.' };
   }
 };
+
+/**
+ * Finds user's custom ID by their registered email.
+ */
+export const findCustomIdByEmail = async (email: string): Promise<{ success: boolean; customId?: string; message: string }> => {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_custom_id_by_email', { user_email: email.trim().toLowerCase() });
+
+    if (error) {
+      console.error('get_custom_id_by_email RPC error:', error);
+      // Fallback: search profile using standard query. If RLS blocks, we will fail with a clean message.
+      const { data: profile, error: queryErr } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email.trim().toLowerCase())
+        .maybeSingle();
+
+      if (queryErr || !profile) {
+        return { 
+          success: false, 
+          message: '해당 이메일로 등록된 정보를 조회할 수 없거나 RPC 함수가 활성화되어 있지 않습니다. 제공된 SQL 스크립트를 관리자가 데이터베이스에 적용하였는지 확인해 주세요.' 
+        };
+      }
+
+      return { success: true, customId: profile.id, message: '아이디를 성공적으로 조회했습니다!' };
+    }
+
+    if (!data) {
+      return { success: false, message: '해당 이메일로 등록된 아이디가 존재하지 않습니다.' };
+    }
+
+    return { success: true, customId: data, message: '아이디를 성공적으로 조회했습니다!' };
+  } catch (err: any) {
+    console.error('findCustomIdByEmail error:', err);
+    return { success: false, message: err.message || '아이디 조회 도중 오류가 발생했습니다.' };
+  }
+};
+
+/**
+ * Sends a password reset email via Supabase Auth.
+ */
+export const sendPasswordResetEmail = async (email: string): Promise<{ success: boolean; message: string }> => {
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: window.location.origin
+    });
+
+    if (error) {
+      return { success: false, message: error.message };
+    }
+
+    return { success: true, message: '비밀번호 재설정 메일이 전송되었습니다! 이메일 수신함을 확인해 주세요.' };
+  } catch (err: any) {
+    console.error('sendPasswordResetEmail error:', err);
+    return { success: false, message: err.message || '비밀번호 재설정 이메일 요청에 실패했습니다.' };
+  }
+};
+

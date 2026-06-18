@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Post, CATEGORY_TAGS, PostType, Report } from '../types';
-import { loginUser, registerUser, logoutUser, updatePost, deletePost, getUsers, deleteUser, updateUserProfile, getReports, resolveReport, deleteReport, deleteComment } from '../db';
+import { loginUser, registerUser, logoutUser, updatePost, deletePost, getUsers, deleteUser, updateUserProfile, getReports, resolveReport, deleteReport, deleteComment, findCustomIdByEmail, sendPasswordResetEmail } from '../db';
 import { Lock, UserCheck, Mail, BookOpen, Key, LogOut, CheckCircle, AlertCircle, Edit2, Trash2, Tag, MapPin, Eye, FileText, Compass, Camera, Image, Smile, Palette, ShieldAlert, Check, X, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -38,6 +38,11 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
   const [signupStudentId, setSignupStudentId] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
+
+  // Find ID & Reset Password states
+  const [findEmail, setFindEmail] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
 
   // Info alerts
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -244,6 +249,7 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingAuth) return;
     setAlert(null);
 
     if (!loginId.trim() || !loginPassword.trim()) {
@@ -251,6 +257,7 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
       return;
     }
 
+    setIsSubmittingAuth(true);
     try {
       const res = await loginUser(loginId.trim(), loginPassword);
       if (res.success && res.user) {
@@ -266,11 +273,14 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
       }
     } catch (err: any) {
       setAlert({ type: 'error', text: err.message || '로그인 중 통신 실패가 발생했습니다.' });
+    } finally {
+      setIsSubmittingAuth(false);
     }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingAuth) return;
     setAlert(null);
 
     if (!signupId.trim() || !signupName.trim() || !signupStudentId.trim() || !signupEmail.trim() || !signupPassword.trim()) {
@@ -299,6 +309,7 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
       password: signupPassword,
     };
 
+    setIsSubmittingAuth(true);
     try {
       const res = await registerUser(newUser);
       if (res.success) {
@@ -318,6 +329,63 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
       }
     } catch (err: any) {
       setAlert({ type: 'error', text: err.message || '가입 가공 중 문제가 발생했습니다.' });
+    } finally {
+      setIsSubmittingAuth(false);
+    }
+  };
+
+  const handleFindId = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmittingAuth) return;
+    setAlert(null);
+
+    if (!findEmail.trim()) {
+      setAlert({ type: 'error', text: '이메일 주소를 입력해 주세요.' });
+      return;
+    }
+
+    setIsSubmittingAuth(true);
+    try {
+      const res = await findCustomIdByEmail(findEmail.trim());
+      if (res.success && res.customId) {
+        setAlert({ 
+          type: 'success', 
+          text: `학우님의 등록된 아이디는 [ ${res.customId} ] 입니다. 이 아이디로 로그인을 진행해 주세요.` 
+        });
+        setFindEmail('');
+      } else {
+        setAlert({ type: 'error', text: res.message });
+      }
+    } catch (err: any) {
+      setAlert({ type: 'error', text: err.message || '아이디 조회 중 에러가 발생했습니다.' });
+    } finally {
+      setIsSubmittingAuth(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmittingAuth) return;
+    setAlert(null);
+
+    if (!resetEmail.trim()) {
+      setAlert({ type: 'error', text: '이메일 주소를 입력해 주세요.' });
+      return;
+    }
+
+    setIsSubmittingAuth(true);
+    try {
+      const res = await sendPasswordResetEmail(resetEmail.trim());
+      if (res.success) {
+        setAlert({ type: 'success', text: res.message });
+        setResetEmail('');
+      } else {
+        setAlert({ type: 'error', text: res.message });
+      }
+    } catch (err: any) {
+      setAlert({ type: 'error', text: err.message || '비밀번호 재설정 이메일 전송 중 에러가 발생했습니다.' });
+    } finally {
+      setIsSubmittingAuth(false);
     }
   };
 
@@ -428,7 +496,7 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
               id="switch-auth-login"
               onClick={() => { setAuthMode('login'); setAlert(null); }}
               className={`flex-1 py-4.5 text-center text-sm font-bold transition-all duration-200 cursor-pointer ${
-                authMode === 'login'
+                authMode === 'login' || authMode === 'find_id' || authMode === 'reset_password'
                   ? 'bg-white border-b-2 border-indigo-600 text-indigo-700 font-extrabold'
                   : 'text-slate-400 hover:text-slate-600'
               }`}
@@ -516,10 +584,145 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
                 <button
                   type="submit"
                   id="btn-submit-login"
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl text-sm transition-all duration-200 shadow-md shadow-indigo-100 cursor-pointer mt-4"
+                  disabled={isSubmittingAuth}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-350 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl text-sm transition-all duration-200 shadow-md shadow-indigo-100 cursor-pointer mt-4 flex items-center justify-center gap-1.5"
                 >
-                  로그인 완료
+                  {isSubmittingAuth ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-indigo-200 border-t-white rounded-full animate-spin"></div>
+                      <span>로그인 중...</span>
+                    </>
+                  ) : (
+                    '로그인 완료'
+                  )}
                 </button>
+
+                <div className="flex items-center justify-between text-xs px-1 pt-2 border-t border-slate-100/80 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setAuthMode('find_id'); setAlert(null); }}
+                    className="text-slate-500 hover:text-indigo-650 font-bold transition-colors cursor-pointer"
+                  >
+                    🔍 아이디 찾기
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAuthMode('reset_password'); setAlert(null); }}
+                    className="text-slate-500 hover:text-indigo-650 font-bold transition-colors cursor-pointer"
+                  >
+                    🔒 비밀번호 재설정
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* C. FIND ID INTERFACE */}
+            {authMode === 'find_id' && (
+              <form onSubmit={handleFindId} className="space-y-4">
+                <div className="space-y-1.5">
+                  <h3 className="font-extrabold text-sm text-slate-800">아이디 찾기</h3>
+                  <p className="text-xs text-slate-500 leading-normal">
+                    본인의 가입 시 등록하신 이메일 주소를 정확히 작성해 주세요. DB에서 연동된 학우님의 고유 아이디를 즉시 복원해 드립니다.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="find-email" className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                    이메일 주소
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3.5 w-4 h-4 text-indigo-500" />
+                    <input
+                      id="find-email"
+                      type="email"
+                      required
+                      placeholder="example@email.com"
+                      value={findEmail}
+                      onChange={(e) => setFindEmail(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-hidden focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-sm font-medium transition-all"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmittingAuth}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-350 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl text-sm transition-all duration-200 shadow-md shadow-indigo-100 cursor-pointer mt-4 flex items-center justify-center gap-1.5"
+                >
+                  {isSubmittingAuth ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-indigo-200 border-t-white rounded-full animate-spin"></div>
+                      <span>조회 중...</span>
+                    </>
+                  ) : (
+                    '아이디 확인하기'
+                  )}
+                </button>
+
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setAuthMode('login'); setAlert(null); }}
+                    className="text-xs font-bold text-slate-450 hover:text-indigo-600 transition-colors cursor-pointer"
+                  >
+                    로그인 전용 화면으로 돌아가기
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* D. PASSWORD RESET INTERFACE */}
+            {authMode === 'reset_password' && (
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div className="space-y-1.5">
+                  <h3 className="font-extrabold text-sm text-slate-800">비밀번호 재설정 이메일 전송</h3>
+                  <p className="text-xs text-slate-500 leading-normal">
+                    비밀번호를 재설정할 수 있는 보안 토큰 메일을 가입하신 이메일 수신함으로 전송해 드립니다. 메일 본문의 링크를 클릭하여 새로운 주키(key)를 지정해 주세요.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="reset-email" className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                    이메일 주소
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3.5 w-4 h-4 text-indigo-500" />
+                    <input
+                      id="reset-email"
+                      type="email"
+                      required
+                      placeholder="example@email.com"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-hidden focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 text-sm font-medium transition-all"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmittingAuth}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-350 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl text-sm transition-all duration-200 shadow-md shadow-indigo-100 cursor-pointer mt-4 flex items-center justify-center gap-1.5"
+                >
+                  {isSubmittingAuth ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-indigo-200 border-t-white rounded-full animate-spin"></div>
+                      <span>재설정 메일 전송 중...</span>
+                    </>
+                  ) : (
+                    '재설정 보안 메일 요청하기'
+                  )}
+                </button>
+
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setAuthMode('login'); setAlert(null); }}
+                    className="text-xs font-bold text-slate-450 hover:text-indigo-600 transition-colors cursor-pointer"
+                  >
+                    로그인 전용 화면으로 돌아가기
+                  </button>
+                </div>
               </form>
             )}
 
@@ -618,9 +821,17 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
                 <button
                   type="submit"
                   id="btn-submit-signup"
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl text-sm transition-all duration-200 shadow-md shadow-indigo-100 cursor-pointer mt-4"
+                  disabled={isSubmittingAuth}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-350 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl text-sm transition-all duration-200 shadow-md shadow-indigo-100 cursor-pointer mt-4 flex items-center justify-center gap-1.5"
                 >
-                  기입 완료 및 가입
+                  {isSubmittingAuth ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-indigo-200 border-t-white rounded-full animate-spin"></div>
+                      <span>가입 처리 중...</span>
+                    </>
+                  ) : (
+                    '기입 완료 및 가입'
+                  )}
                 </button>
               </form>
             )}

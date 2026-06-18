@@ -19,6 +19,8 @@ export default function App() {
   const [activeUser, setActiveUser] = useState<User | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [loadingPosts, setLoadingPosts] = useState<boolean>(true);
+  const [postsError, setPostsError] = useState<string | null>(null);
 
   // Time ticker state for visual polish
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -36,10 +38,19 @@ export default function App() {
   }, []);
 
   const reloadSessionAndPosts = async () => {
-    const user = getCurrentUser();
-    setActiveUser(user);
-    const latestPosts = await getPosts();
-    setPosts(latestPosts);
+    setLoadingPosts(true);
+    setPostsError(null);
+    try {
+      const user = getCurrentUser();
+      setActiveUser(user);
+      const latestPosts = await getPosts();
+      setPosts(latestPosts);
+    } catch (err: any) {
+      console.error('reloadSessionAndPosts error:', err);
+      setPostsError('데이터베이스에서 목록을 불러오는 도중 오류가 발생했습니다. 아래 새로고침 버튼을 이용해 다시 시도해 주세요.');
+    } finally {
+      setLoadingPosts(false);
+    }
   };
 
   // Callback after successful login
@@ -50,13 +61,19 @@ export default function App() {
 
   // Re-sync post object on comment add, view increment, or state modification
   const handlePostsUpdated = async () => {
-    const latestPosts = await getPosts();
-    setPosts(latestPosts);
-    
-    // If we're inspecting a post, refresh its details so numbers align
-    if (selectedPost) {
-      const refreshedPost = latestPosts.find(p => p.id === selectedPost.id);
-      setSelectedPost(refreshedPost || null);
+    setPostsError(null);
+    try {
+      const latestPosts = await getPosts();
+      setPosts(latestPosts);
+      
+      // If we're inspecting a post, refresh its details so numbers align
+      if (selectedPost) {
+        const refreshedPost = latestPosts.find(p => p.id === selectedPost.id);
+        setSelectedPost(refreshedPost || null);
+      }
+    } catch (err: any) {
+      console.error('handlePostsUpdated error:', err);
+      setPostsError('데이터베이스 상태 동기화 도중 지연이 발생했거나 응답하지 않습니다.');
     }
   };
 
@@ -219,8 +236,11 @@ export default function App() {
             {activeTab === 'search' && (
               <SearchTab
                 posts={posts}
+                loading={loadingPosts}
+                error={postsError}
                 onSelectPost={handleSelectPost}
                 onPostUpdated={handlePostsUpdated}
+                onRefreshPosts={reloadSessionAndPosts}
               />
             )}
 

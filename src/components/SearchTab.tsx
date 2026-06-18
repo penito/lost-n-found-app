@@ -5,15 +5,25 @@ import { Search, ArrowUpDown, Filter, Tag, MapPin, Calendar, Eye, RefreshCw, Che
 
 interface SearchTabProps {
   posts: Post[];
+  loading: boolean;
+  error: string | null;
   onSelectPost: (post: Post) => void;
   onPostUpdated: () => void;
+  onRefreshPosts?: () => void;
 }
 
 /**
  * SearchTab Component - Provides highly refined simultaneous multi-condition searches 
  * and multi-tag filtering across student loss & found reports.
  */
-export default function SearchTab({ posts, onSelectPost, onPostUpdated }: SearchTabProps) {
+export default function SearchTab({ 
+  posts, 
+  loading, 
+  error, 
+  onSelectPost, 
+  onPostUpdated, 
+  onRefreshPosts 
+}: SearchTabProps) {
   // --- STATE DECLARATIONS ---
   
   // General query (matches across all fields)
@@ -434,7 +444,34 @@ export default function SearchTab({ posts, onSelectPost, onPostUpdated }: Search
           className="max-h-[700px] overflow-y-auto pr-1 space-y-4 scrollbar-thin scrollbar-thumb-slate-200"
           style={{ scrollBehavior: 'smooth' }}
         >
-          {filteredAndSortedPosts.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-24 bg-white border border-slate-100 rounded-3xl space-y-4 shadow-3xs flex flex-col items-center justify-center">
+              <RefreshCw className="w-8 h-8 text-indigo-650 animate-spin" />
+              <div className="space-y-1">
+                <p className="text-slate-700 text-sm font-bold">학수고대 분실물 목록을 로딩하는 중입니다...</p>
+                <p className="text-slate-400 text-xs font-medium">Supabase 실시간 분실물 데이터베이스와 교신하고 있습니다.</p>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="text-center py-20 bg-rose-50/50 border border-rose-100 rounded-3xl space-y-4 px-4 flex flex-col items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-rose-105 bg-rose-100 flex items-center justify-center text-rose-650">
+                <RefreshCw className="w-5 h-5" />
+              </div>
+              <div className="space-y-1 text-center">
+                <p className="text-rose-900 text-sm font-bold">정보 조회 실패</p>
+                <p className="text-rose-700 text-xs leading-relaxed max-w-md mx-auto">{error}</p>
+              </div>
+              {onRefreshPosts && (
+                <button
+                  type="button"
+                  onClick={onRefreshPosts}
+                  className="mt-2 text-xs font-bold bg-rose-600 text-white px-4 py-2.5 rounded-full hover:bg-rose-700 transition-all cursor-pointer shadow-3xs border-none"
+                >
+                  새로고침 다시 시도하기
+                </button>
+              )}
+            </div>
+          ) : filteredAndSortedPosts.length === 0 ? (
             <div className="text-center py-20 bg-white border border-dashed border-slate-200 rounded-3xl space-y-3">
               <p className="text-slate-500 text-sm font-semibold">설정하신 동시 만족 조건에 부합하는 분실물이 없습니다.</p>
               <p className="text-slate-400 text-xs">상세 검색 박스의 문구들을 지우거나 다른 검색어를 조합해 보세요.</p>
