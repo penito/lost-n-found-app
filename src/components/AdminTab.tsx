@@ -55,10 +55,17 @@ export default function AdminTab({ activeUser, posts, onPostsUpdated, onViewPost
   // Status message notice
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // --- EFFECTS FOR SECURE ROLE VERIFICATION ---
+  // --- EFFECTS FOR SECURE ROLE VERIFICATION & DATA LOADING ---
   useEffect(() => {
     verifyRole();
   }, [activeUser]);
+
+  // Load actual database data when admin permission is successfully verified
+  useEffect(() => {
+    if (hasAdminPermission && activeUser) {
+      loadAdminData(activeUser.id);
+    }
+  }, [hasAdminPermission, activeUser]);
 
   const verifyRole = async () => {
     setIsVerifying(true);
@@ -80,26 +87,33 @@ export default function AdminTab({ activeUser, posts, onPostsUpdated, onViewPost
       const isValid = await assertIsAdmin(activeUser.id);
       if (isValid) {
         setHasAdminPermission(true);
-        // Load data immediately if verified
-        const fetchCommentsCount = async () => {
-          try {
-            const count = await getAllCommentsCount();
-            setTotalComments(count);
-          } catch (e) {
-            console.error(e);
-          }
-        };
-        await Promise.all([
-          loadUsersListLocally(activeUser.id), 
-          loadReportsListLocally(activeUser.id),
-          fetchCommentsCount()
-        ]);
+      } else {
+        console.warn(`Admin verification failed for user ID: ${activeUser.id}`);
       }
     } catch (err) {
       console.error('Admin verification error:', err);
     } finally {
       setIsVerifying(false);
     }
+  };
+
+  const loadAdminData = async (adminId: string) => {
+    // Load each statistics and table dataset independently & safely to avoid single-query blocking
+    const fetchCommentsCount = async () => {
+      try {
+        const count = await getAllCommentsCount();
+        setTotalComments(count);
+      } catch (e) {
+        console.error('Failed to load total comments count:', e);
+      }
+    };
+
+    // Trigger loads concurrently but capture any individual rejections safely
+    await Promise.allSettled([
+      loadUsersListLocally(adminId),
+      loadReportsListLocally(adminId),
+      fetchCommentsCount()
+    ]);
   };
 
   const loadUsersListLocally = async (adminId: string) => {
@@ -129,7 +143,7 @@ export default function AdminTab({ activeUser, posts, onPostsUpdated, onViewPost
   const handleRefreshData = async () => {
     if (!activeUser) return;
     setAlert({ type: 'success', text: 'Supabase 데이터 정밀 실시간 동기화 중...' });
-    await Promise.all([loadUsersListLocally(activeUser.id), loadReportsListLocally(activeUser.id)]);
+    await loadAdminData(activeUser.id);
     setTimeout(() => setAlert(null), 1200);
   };
 
