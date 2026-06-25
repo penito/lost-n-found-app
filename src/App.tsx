@@ -6,6 +6,7 @@ import SearchTab from './components/SearchTab';
 import MyInfoTab from './components/MyInfoTab';
 import PostDetail from './components/PostDetail';
 import AdminTab from './components/AdminTab';
+import ResetPassword from './components/ResetPassword';
 import { Search, PlusCircle, User as UserIcon, LogIn, Sparkles, BookOpen, Clock, ShieldAlert } from 'lucide-react';
 // @ts-ignore
 import jkLogo from '../JK.png';
@@ -15,6 +16,7 @@ type TabType = 'search' | 'register' | 'myinfo' | 'admin';
 export default function App() {
   // Navigation states
   const [activeTab, setActiveTab] = useState<TabType>('search');
+  const [currentPath, setCurrentPath] = useState<string>(window.location.pathname);
   
   // Database states
   const [activeUser, setActiveUser] = useState<User | null>(null);
@@ -25,6 +27,23 @@ export default function App() {
 
   // Time ticker state for visual polish
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Redirect to /reset-password if recovery token is in hash or search params on load
+  useEffect(() => {
+    const hash = window.location.hash;
+    const search = window.location.search;
+    if (
+      hash.includes('type=recovery') || 
+      hash.includes('access_token=') || 
+      search.includes('code=')
+    ) {
+      if (window.location.pathname !== '/reset-password') {
+        const newUrl = window.location.origin + '/reset-password' + search + hash;
+        window.history.replaceState(null, '', newUrl);
+        setCurrentPath('/reset-password');
+      }
+    }
+  }, []);
 
   // On mount, initialize fake DB and sessions
   useEffect(() => {
@@ -172,75 +191,85 @@ export default function App() {
       </header>
 
       {/* 2. THE THREE PERSISTENT TABS NAVIGATION BAR (Click / Touch compliant) */}
-      <nav className="bg-white border-b border-slate-100 py-3 sticky top-18 z-30 shadow-xs">
-        <div className="max-w-2xl mx-auto px-4 flex items-center justify-between gap-1.5">
-          
-          <button
-            type="button"
-            id="tab-btn-search"
-            onClick={() => { setActiveTab('search'); setSelectedPost(null); }}
-            className={`flex-1 px-4 py-2.5 rounded-full font-semibold text-xs sm:text-sm border transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === 'search'
-                ? 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-xs'
-                : 'bg-white border-slate-100 text-slate-500 hover:bg-slate-50 hover:text-slate-750'
-            }`}
-          >
-            <Search className="w-4 h-4 text-indigo-500" />
-            <span>분실물 검색</span>
-          </button>
-
-          <button
-            type="button"
-            id="tab-btn-register"
-            onClick={() => { setActiveTab('register'); setSelectedPost(null); }}
-            className={`flex-1 px-4 py-2.5 rounded-full font-semibold text-xs sm:text-sm border transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === 'register'
-                ? 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-xs'
-                : 'bg-white border-slate-100 text-slate-500 hover:bg-slate-50 hover:text-slate-750'
-            }`}
-          >
-            <PlusCircle className="w-4 h-4 text-indigo-500" />
-            <span>물건 등록하기</span>
-          </button>
-
-          <button
-            type="button"
-            id="tab-btn-myinfo"
-            onClick={() => { setActiveTab('myinfo'); setSelectedPost(null); }}
-            className={`flex-1 px-4 py-2.5 rounded-full font-semibold text-xs sm:text-sm border transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === 'myinfo'
-                ? 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-xs'
-                : 'bg-white border-slate-100 text-slate-500 hover:bg-slate-50 hover:text-slate-750'
-            }`}
-          >
-            <UserIcon className="w-4 h-4 text-indigo-500" />
-            <span>내 정보 관리</span>
-          </button>
-
-          {activeUser?.isAdmin && (
+      {currentPath !== '/reset-password' && (
+        <nav className="bg-white border-b border-slate-100 py-3 sticky top-18 z-30 shadow-xs">
+          <div className="max-w-2xl mx-auto px-4 flex items-center justify-between gap-1.5">
+            
             <button
               type="button"
-              id="tab-btn-admin"
-              onClick={() => { setActiveTab('admin'); setSelectedPost(null); }}
+              id="tab-btn-search"
+              onClick={() => { setActiveTab('search'); setSelectedPost(null); }}
               className={`flex-1 px-4 py-2.5 rounded-full font-semibold text-xs sm:text-sm border transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
-                activeTab === 'admin'
-                  ? 'bg-rose-50 text-rose-700 border-rose-100 shadow-xs'
+                activeTab === 'search'
+                  ? 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-xs'
                   : 'bg-white border-slate-100 text-slate-500 hover:bg-slate-50 hover:text-slate-750'
               }`}
             >
-              <ShieldAlert className="w-4 h-4 text-rose-500" />
-              <span>관리자(Admin)</span>
+              <Search className="w-4 h-4 text-indigo-500" />
+              <span>분실물 검색</span>
             </button>
-          )}
 
-        </div>
-      </nav>
+            <button
+              type="button"
+              id="tab-btn-register"
+              onClick={() => { setActiveTab('register'); setSelectedPost(null); }}
+              className={`flex-1 px-4 py-2.5 rounded-full font-semibold text-xs sm:text-sm border transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
+                activeTab === 'register'
+                  ? 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-xs'
+                  : 'bg-white border-slate-100 text-slate-500 hover:bg-slate-50 hover:text-slate-750'
+              }`}
+            >
+              <PlusCircle className="w-4 h-4 text-indigo-500" />
+              <span>물건 등록하기</span>
+            </button>
+
+            <button
+              type="button"
+              id="tab-btn-myinfo"
+              onClick={() => { setActiveTab('myinfo'); setSelectedPost(null); }}
+              className={`flex-1 px-4 py-2.5 rounded-full font-semibold text-xs sm:text-sm border transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
+                activeTab === 'myinfo'
+                  ? 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-xs'
+                  : 'bg-white border-slate-100 text-slate-500 hover:bg-slate-50 hover:text-slate-750'
+              }`}
+            >
+              <UserIcon className="w-4 h-4 text-indigo-500" />
+              <span>내 정보 관리</span>
+            </button>
+
+            {activeUser?.isAdmin && (
+              <button
+                type="button"
+                id="tab-btn-admin"
+                onClick={() => { setActiveTab('admin'); setSelectedPost(null); }}
+                className={`flex-1 px-4 py-2.5 rounded-full font-semibold text-xs sm:text-sm border transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
+                  activeTab === 'admin'
+                    ? 'bg-rose-50 text-rose-700 border-rose-100 shadow-xs'
+                    : 'bg-white border-slate-100 text-slate-500 hover:bg-slate-50 hover:text-slate-750'
+                }`}
+              >
+                <ShieldAlert className="w-4 h-4 text-rose-500" />
+                <span>관리자(Admin)</span>
+              </button>
+            )}
+
+          </div>
+        </nav>
+      )}
 
       {/* 3. DYNAMIC WORKSPACE BODY CONTENT */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         
-        {/* If a user is inspecting a specific post to review and comment */}
-        {selectedPost ? (
+        {currentPath === '/reset-password' ? (
+          <ResetPassword
+            onSuccess={() => {
+              // Clean up the URL hash/search and redirect to the root path
+              window.history.replaceState(null, '', '/');
+              setCurrentPath('/');
+              setActiveTab('myinfo'); // set tab to myinfo so the user is greeted with the login form
+            }}
+          />
+        ) : selectedPost ? (
           <PostDetail
             post={selectedPost}
             activeUser={activeUser}

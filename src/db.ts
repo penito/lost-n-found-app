@@ -785,7 +785,7 @@ export const findCustomIdByEmail = async (email: string): Promise<{ success: boo
 export const sendPasswordResetEmail = async (email: string): Promise<{ success: boolean; message: string }> => {
   try {
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: window.location.origin
+      redirectTo: window.location.origin + '/reset-password'
     });
 
     if (error) {
