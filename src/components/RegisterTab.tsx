@@ -384,23 +384,24 @@ export default function RegisterTab({ onRegisterSuccess, activeUser, posts }: Re
               <Tag className="w-4 h-4 text-slate-400" />
               카테고리 태그 선택 <span className="text-xs text-slate-400 font-normal">(중복 선택 가능, 최대 4개)</span>
             </label>
-            <div className="flex flex-wrap gap-2 pt-1 font-sans">
+            <div className="flex flex-wrap gap-2 pt-1 font-sans notranslate" translate="no">
               {CATEGORY_TAGS.map((tag) => {
                 const isSelected = selectedTags.includes(tag);
                 return (
                   <button
                     key={tag}
                     type="button"
+                    translate="no"
                     id={`tag-btn-${tag}`}
                     onClick={() => handleTagToggle(tag)}
-                    className={`px-4 py-2 rounded-full text-xs font-semibold border transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
+                    className={`px-4 py-2 rounded-full text-xs font-semibold border transition-all duration-200 flex items-center gap-1.5 cursor-pointer notranslate ${
                       isSelected
                         ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                         : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-800'
                     }`}
                   >
                     {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
-                    {tag}
+                    <span>{tag}</span>
                   </button>
                 );
               })}

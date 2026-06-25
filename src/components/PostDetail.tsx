@@ -312,12 +312,12 @@ export default function PostDetail({ post, allPosts, activeUser, onBack, onUpdat
           </div>
 
           {/* Render Tag Badges */}
-          <div className="mb-8">
+          <div className="mb-8 notranslate" translate="no">
             <div className="flex flex-wrap gap-1.5">
               {post.tags.map(tag => (
-                <span key={tag} className="inline-flex items-center gap-1 text-[11px] font-bold bg-neutral-100 text-neutral-600 px-3 py-1 rounded-full">
+                <span key={tag} className="inline-flex items-center gap-1 text-[11px] font-bold bg-neutral-100 text-neutral-600 px-3 py-1 rounded-full notranslate" translate="no">
                   <Tag className="w-3 h-3" />
-                  {tag}
+                  <span>{tag}</span>
                 </span>
               ))}
             </div>

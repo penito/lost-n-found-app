@@ -280,21 +280,22 @@ export default function SearchTab({
                 </button>
               )}
             </div>
-            <div className="flex flex-wrap gap-1.5" id="tag-multiselect-container">
+            <div className="flex flex-wrap gap-1.5 notranslate" id="tag-multiselect-container" translate="no">
               {CATEGORY_TAGS.map((tag) => {
                 const isSelected = selectedTags.includes(tag);
                 return (
                   <button
                     key={tag}
                     type="button"
+                    translate="no"
                     onClick={() => handleTagToggle(tag)}
-                    className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                    className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-all cursor-pointer notranslate ${
                       isSelected
                         ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                         : 'bg-slate-50 text-slate-650 border-slate-200 hover:bg-slate-100'
                     }`}
                   >
-                    #{tag}
+                    <span>#{tag}</span>
                   </button>
                 );
               })}

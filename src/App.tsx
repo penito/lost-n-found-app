@@ -156,7 +156,7 @@ export default function App() {
   };
 
   return (
-    <div id="school-lost-and-found-app" className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased selection:bg-indigo-100 selection:text-indigo-900 pb-12">
+    <div id="school-lost-and-found-app" className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased selection:bg-indigo-100 selection:text-indigo-900 pb-12 notranslate" translate="no">
       
       {/* 1. ARCHITECTURAL HEADER & TIMELINE HERO */}
       <header className="bg-white border-b border-slate-150/80 sticky top-0 z-40 shadow-xs">

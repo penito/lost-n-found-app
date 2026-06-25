@@ -1001,10 +1001,10 @@ export default function MyInfoTab({ activeUser, onLoginSuccess, onLogout, onView
 
                     <div className="flex items-center justify-between mt-1 border-t border-dashed border-slate-100 pt-3.5">
                       {/* Interaction buttons */}
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1 notranslate" translate="no">
                         {post.tags.map(tag => (
-                          <span key={tag} className="text-[9px] font-semibold bg-indigo-50/50 text-indigo-700 px-2 py-0.5 rounded-md">
-                            #{tag}
+                          <span key={tag} className="text-[9px] font-semibold bg-indigo-50/50 text-indigo-700 px-2 py-0.5 rounded-md notranslate" translate="no">
+                            <span>#{tag}</span>
                           </span>
                         ))}
                       </div>

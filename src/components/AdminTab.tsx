@@ -323,7 +323,7 @@ export default function AdminTab({ activeUser, posts, onPostsUpdated, onViewPost
   const maxUserCount = Math.max(...userRegistrationTrend.map(d => d.count), 1);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
+    <div className="max-w-7xl mx-auto space-y-8 animate-fade-in notranslate" translate="no">
       
       {/* A. ADMIN BANNER HEADER */}
       <div className="bg-slate-900 text-white rounded-3xl shadow-lg p-6 md:p-8 relative overflow-hidden border border-slate-950 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
