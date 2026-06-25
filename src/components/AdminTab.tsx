@@ -55,8 +55,8 @@ export default function AdminTab({ activeUser, posts, onPostsUpdated, onViewPost
   // Status message notice
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // --- HOOKS & STATS CALCULATIONS (Declared at Top-Level to prevent React Hook rules violations) ---
-  const userRegistrationTrend = React.useMemo(() => {
+  // --- STATS CALCULATIONS (Evaluated inline to prevent React Hook rules violations #310) ---
+  const userRegistrationTrend = (() => {
     const buckets = [
       { label: '26~30일 전', daysStart: 30, daysEnd: 26 },
       { label: '21~25일 전', daysStart: 25, daysEnd: 21 },
@@ -83,7 +83,7 @@ export default function AdminTab({ activeUser, posts, onPostsUpdated, onViewPost
       }).length;
       return { label: b.label, count };
     });
-  }, [users]);
+  })();
 
   // --- EFFECTS FOR SECURE ROLE VERIFICATION & DATA LOADING ---
   useEffect(() => {
@@ -639,7 +639,15 @@ export default function AdminTab({ activeUser, posts, onPostsUpdated, onViewPost
                       </span>
 
                       <span className="text-[10px] text-slate-400 font-mono">
-                        {new Date(report.createdAt).toLocaleString('ko-KR')}
+                        {(() => {
+                          if (!report.createdAt) return '일시 불명';
+                          try {
+                            const d = new Date(report.createdAt);
+                            return isNaN(d.getTime()) ? '일시 불명' : d.toLocaleString('ko-KR');
+                          } catch {
+                            return '일시 불명';
+                          }
+                        })()}
                       </span>
                     </div>
 
@@ -647,7 +655,7 @@ export default function AdminTab({ activeUser, posts, onPostsUpdated, onViewPost
                       <div>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">신고 접수 유형 / 사유</p>
                         <p className="text-xs font-extrabold text-rose-700 mt-0.5 bg-rose-50 px-2 py-1.5 rounded-lg border border-rose-100 inline-block">
-                          {report.reason}
+                          {report.reason || '신고 사유 없음'}
                         </p>
                         {report.customReason && (
                           <div className="text-slate-600 font-semibold block mt-1.5 bg-white p-2.5 rounded-xl border border-slate-150 leading-relaxed">
@@ -659,12 +667,12 @@ export default function AdminTab({ activeUser, posts, onPostsUpdated, onViewPost
                       <div>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">신고 대상 원문 / 제목</p>
                         <p className="text-xs text-slate-800 font-semibold mt-0.5 max-h-20 overflow-y-auto bg-white p-2.5 rounded-xl border border-slate-150 line-clamp-3 leading-relaxed">
-                          {report.targetTitleOrContent}
+                          {report.targetTitleOrContent || '대상 원문이 존재하지 않거나 이미 삭제되었습니다.'}
                         </p>
                       </div>
 
                       <div className="text-[10px] text-slate-450 font-medium">
-                        <span>신고자 ID / 이름: {report.reporterId} ({report.reporterName})</span>
+                        <span>신고자 ID / 이름: {report.reporterId || '알 수 없음'} ({report.reporterName || '익명 학우'})</span>
                       </div>
                     </div>
 
