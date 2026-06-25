@@ -55,6 +55,36 @@ export default function AdminTab({ activeUser, posts, onPostsUpdated, onViewPost
   // Status message notice
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // --- HOOKS & STATS CALCULATIONS (Declared at Top-Level to prevent React Hook rules violations) ---
+  const userRegistrationTrend = React.useMemo(() => {
+    const buckets = [
+      { label: '26~30일 전', daysStart: 30, daysEnd: 26 },
+      { label: '21~25일 전', daysStart: 25, daysEnd: 21 },
+      { label: '16~20일 전', daysStart: 20, daysEnd: 16 },
+      { label: '11~15일 전', daysStart: 15, daysEnd: 11 },
+      { label: '6~10일 전', daysStart: 10, daysEnd: 6 },
+      { label: '최근 5일', daysStart: 5, daysEnd: 0 }
+    ];
+
+    const now = new Date();
+    const safeUsers = users || [];
+    return buckets.map(b => {
+      const count = safeUsers.filter(u => {
+        if (!u.createdAt) return false;
+        try {
+          const regDate = new Date(u.createdAt);
+          if (isNaN(regDate.getTime())) return false;
+          const diffMs = now.getTime() - regDate.getTime();
+          const diffDays = diffMs / (1000 * 60 * 60 * 24);
+          return diffDays >= b.daysEnd && diffDays <= b.daysStart;
+        } catch {
+          return false;
+        }
+      }).length;
+      return { label: b.label, count };
+    });
+  }, [users]);
+
   // --- EFFECTS FOR SECURE ROLE VERIFICATION & DATA LOADING ---
   useEffect(() => {
     verifyRole();
@@ -289,29 +319,6 @@ export default function AdminTab({ activeUser, posts, onPostsUpdated, onViewPost
   });
 
   const maxPostCount = Math.max(...postsTrendData.map(d => d.count), 1);
-
-  const userRegistrationTrend = React.useMemo(() => {
-    const buckets = [
-      { label: '26~30일 전', daysStart: 30, daysEnd: 26 },
-      { label: '21~25일 전', daysStart: 25, daysEnd: 21 },
-      { label: '16~20일 전', daysStart: 20, daysEnd: 16 },
-      { label: '11~15일 전', daysStart: 15, daysEnd: 11 },
-      { label: '6~10일 전', daysStart: 10, daysEnd: 6 },
-      { label: '최근 5일', daysStart: 5, daysEnd: 0 }
-    ];
-
-    const now = new Date();
-    return buckets.map(b => {
-      const count = users.filter(u => {
-        if (!u.createdAt) return false;
-        const regDate = new Date(u.createdAt);
-        const diffMs = now.getTime() - regDate.getTime();
-        const diffDays = diffMs / (1000 * 60 * 60 * 24);
-        return diffDays >= b.daysEnd && diffDays <= b.daysStart;
-      }).length;
-      return { label: b.label, count };
-    });
-  }, [users]);
 
   const maxUserCount = Math.max(...userRegistrationTrend.map(d => d.count), 1);
 
