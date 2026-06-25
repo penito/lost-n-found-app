@@ -424,87 +424,91 @@ export default function RegisterTab({ onRegisterSuccess, activeUser, posts }: Re
             />
           </div>
 
-          {/* 🔍 Auto Matching Section */}
-          {matches.length > 0 && (
-            <div id="auto-match-section" className="p-4 bg-indigo-50/70 rounded-2xl border border-indigo-100/80 space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-extrabold text-indigo-950 flex items-center gap-1.5 uppercase tracking-wider">
-                  <Sparkles className="w-4 h-4 text-indigo-600 animate-pulse" />
-                  실시간 AI 매칭 제안
-                </h4>
-                <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-full">
-                  유사 글 {matches.length}건 발견
-                </span>
-              </div>
-              
-              <p className="text-xs text-indigo-800 font-medium leading-relaxed">
-                작성하신 정보와 유사한{' '}
-                <strong className="font-extrabold text-indigo-900">
-                  {type === 'lost' ? '습득물(found)' : '분실물(lost)'} 게시글 {matches.length}건
-                </strong>
-                이 발견되었습니다. 혹시 찾으시는 물건인가요?
-              </p>
+          {/* 🔍 Auto Matching Section - Wrapped in a stable div wrapper to prevent React DOM insertBefore crash */}
+          <div id="auto-match-section-wrapper" className="w-full">
+            {matches.length > 0 && (
+              <div id="auto-match-section" className="p-4 bg-indigo-50/70 rounded-2xl border border-indigo-100/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-extrabold text-indigo-950 flex items-center gap-1.5 uppercase tracking-wider">
+                    <Sparkles className="w-4 h-4 text-indigo-600 animate-pulse" />
+                    실시간 AI 매칭 제안
+                  </h4>
+                  <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-full">
+                    유사 글 {matches.length}건 발견
+                  </span>
+                </div>
+                
+                <p className="text-xs text-indigo-800 font-medium leading-relaxed">
+                  작성하신 정보와 유사한{' '}
+                  <strong className="font-extrabold text-indigo-900">
+                    {type === 'lost' ? '습득물(found)' : '분실물(lost)'} 게시글 {matches.length}건
+                  </strong>
+                  이 발견되었습니다. 혹시 찾으시는 물건인가요?
+                </p>
 
-              <div className="space-y-2">
-                {matches.map(({ post, similarity, reason }) => (
-                  <div 
-                    key={post.id} 
-                    className="bg-white/90 hover:bg-white rounded-xl p-3 border border-indigo-100 flex items-center justify-between gap-3 transition-all shadow-3xs"
-                  >
-                    <div className="space-y-0.5 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-bold text-slate-800 truncate block max-w-[200px]">
-                          {post.title}
-                        </span>
-                        <span className="text-[9px] bg-emerald-50 text-emerald-700 font-black px-1.5 py-0.5 rounded-md">
-                          일치율 {Math.round(similarity * 100)}%
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-slate-450 truncate">
-                        📍 {post.location} | 🏷️ {post.tags.join(', ')}
-                      </p>
-                      <p className="text-[9px] text-indigo-600 font-medium">
-                        🔍 {reason}
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowMatchDetail(post)}
-                      className="p-1.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] rounded-lg transition-all flex items-center gap-1 shrink-0 border-none cursor-pointer"
+                <div className="space-y-2">
+                  {matches.map(({ post, similarity, reason }) => (
+                    <div 
+                      key={post.id} 
+                      className="bg-white/90 hover:bg-white rounded-xl p-3 border border-indigo-100 flex items-center justify-between gap-3 transition-all shadow-3xs"
                     >
-                      <Eye className="w-3 h-3" />
-                      자세히 보기
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-bold text-slate-800 truncate block max-w-[200px]">
+                            {post.title}
+                          </span>
+                          <span className="text-[9px] bg-emerald-50 text-emerald-700 font-black px-1.5 py-0.5 rounded-md">
+                            일치율 {Math.round(similarity * 100)}%
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-450 truncate">
+                          📍 {post.location} | 🏷️ {post.tags.join(', ')}
+                        </p>
+                        <p className="text-[9px] text-indigo-600 font-medium">
+                          🔍 {reason}
+                        </p>
+                      </div>
 
-          {/* Status message alerts */}
-          <AnimatePresence mode="wait">
-            {infoMessage && (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                id="registration-alert-box"
-                className={`p-4 rounded-xl flex items-center gap-2.5 text-xs font-medium leading-normal ${
-                  infoMessage.type === 'success'
-                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                    : 'bg-rose-50 text-rose-800 border border-rose-200'
-                }`}
-              >
-                {infoMessage.type === 'success' ? (
-                  <Check className="w-4 h-4 text-indigo-600 shrink-0" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                )}
-                <span>{infoMessage.text}</span>
-              </motion.div>
+                      <button
+                        type="button"
+                        onClick={() => setShowMatchDetail(post)}
+                        className="p-1.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] rounded-lg transition-all flex items-center gap-1 shrink-0 border-none cursor-pointer"
+                      >
+                        <Eye className="w-3 h-3" />
+                        자세히 보기
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
-          </AnimatePresence>
+          </div>
+
+          {/* Status message alerts - Wrapped in a stable div wrapper to prevent React DOM insertBefore crash */}
+          <div id="registration-alert-box-wrapper" className="w-full">
+            <AnimatePresence mode="wait">
+              {infoMessage && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  id="registration-alert-box"
+                  className={`p-4 rounded-xl flex items-center gap-2.5 text-xs font-medium leading-normal ${
+                    infoMessage.type === 'success'
+                      ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                      : 'bg-rose-50 text-rose-800 border border-rose-200'
+                  }`}
+                >
+                  {infoMessage.type === 'success' ? (
+                    <Check className="w-4 h-4 text-indigo-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
+                  <span>{infoMessage.text}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           {/* Register Button */}
           <button
