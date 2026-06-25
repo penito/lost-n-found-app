@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { addPost, getCurrentUser } from '../db';
-import { CATEGORY_TAGS, PostType } from '../types';
-import { PlusCircle, MapPin, User, Tag, FileText, Check, AlertCircle, HelpCircle, Image, Trash2, Camera } from 'lucide-react';
+import { CATEGORY_TAGS, PostType, Post } from '../types';
+import { PlusCircle, MapPin, User, Tag, FileText, Check, AlertCircle, HelpCircle, Image, Trash2, Camera, Sparkles, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { findMatchesForPost } from '../matching';
 
 interface RegisterTabProps {
   onRegisterSuccess: () => void;
   activeUser: ReturnType<typeof getCurrentUser>;
+  posts: Post[];
 }
 
-export default function RegisterTab({ onRegisterSuccess, activeUser }: RegisterTabProps) {
+export default function RegisterTab({ onRegisterSuccess, activeUser, posts }: RegisterTabProps) {
   const [type, setType] = useState<PostType>('found');
   const [title, setTitle] = useState('');
   const [reporterName, setReporterName] = useState('');
@@ -19,6 +21,35 @@ export default function RegisterTab({ onRegisterSuccess, activeUser }: RegisterT
   const [description, setDescription] = useState('');
   
   const [infoMessage, setInfoMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Auto-matching States
+  const [matches, setMatches] = useState<{ post: Post; similarity: number; reason: string }[]>([]);
+  const [showMatchDetail, setShowMatchDetail] = useState<Post | null>(null);
+
+  // Dynamic automatic matching calculation
+  useEffect(() => {
+    if (title.trim().length >= 2 || location.trim().length >= 2 || selectedTags.length > 0) {
+      const tempPost: Post = {
+        id: 'temp',
+        title: title.trim(),
+        type,
+        reporterName: reporterName.trim() || '임시',
+        reporterStudentId: reporterStudentId.trim() || '0000',
+        location: location.trim(),
+        tags: selectedTags,
+        description: description.trim(),
+        createdAt: new Date().toISOString(),
+        views: 0,
+        resolved: false,
+        authorId: activeUser ? activeUser.id : 'guest'
+      };
+
+      const foundMatches = findMatchesForPost(tempPost, posts);
+      setMatches(foundMatches.slice(0, 3)); // Display top 3 most similar matches
+    } else {
+      setMatches([]);
+    }
+  }, [title, type, location, selectedTags, posts, activeUser, reporterName, reporterStudentId, description]);
 
   // States for Image Upload
   const [imageUrl, setImageUrl] = useState<string>('');
@@ -393,6 +424,64 @@ export default function RegisterTab({ onRegisterSuccess, activeUser }: RegisterT
             />
           </div>
 
+          {/* 🔍 Auto Matching Section */}
+          {matches.length > 0 && (
+            <div id="auto-match-section" className="p-4 bg-indigo-50/70 rounded-2xl border border-indigo-100/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-extrabold text-indigo-950 flex items-center gap-1.5 uppercase tracking-wider">
+                  <Sparkles className="w-4 h-4 text-indigo-600 animate-pulse" />
+                  실시간 AI 매칭 제안
+                </h4>
+                <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-full">
+                  유사 글 {matches.length}건 발견
+                </span>
+              </div>
+              
+              <p className="text-xs text-indigo-800 font-medium leading-relaxed">
+                작성하신 정보와 유사한{' '}
+                <strong className="font-extrabold text-indigo-900">
+                  {type === 'lost' ? '습득물(found)' : '분실물(lost)'} 게시글 {matches.length}건
+                </strong>
+                이 발견되었습니다. 혹시 찾으시는 물건인가요?
+              </p>
+
+              <div className="space-y-2">
+                {matches.map(({ post, similarity, reason }) => (
+                  <div 
+                    key={post.id} 
+                    className="bg-white/90 hover:bg-white rounded-xl p-3 border border-indigo-100 flex items-center justify-between gap-3 transition-all shadow-3xs"
+                  >
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-bold text-slate-800 truncate block max-w-[200px]">
+                          {post.title}
+                        </span>
+                        <span className="text-[9px] bg-emerald-50 text-emerald-700 font-black px-1.5 py-0.5 rounded-md">
+                          일치율 {Math.round(similarity * 100)}%
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-450 truncate">
+                        📍 {post.location} | 🏷️ {post.tags.join(', ')}
+                      </p>
+                      <p className="text-[9px] text-indigo-600 font-medium">
+                        🔍 {reason}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowMatchDetail(post)}
+                      className="p-1.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] rounded-lg transition-all flex items-center gap-1 shrink-0 border-none cursor-pointer"
+                    >
+                      <Eye className="w-3 h-3" />
+                      자세히 보기
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Status message alerts */}
           <AnimatePresence mode="wait">
             {infoMessage && (
@@ -429,6 +518,101 @@ export default function RegisterTab({ onRegisterSuccess, activeUser }: RegisterT
 
         </form>
       </div>
+
+      {/* MATCH DETAIL MODAL */}
+      <AnimatePresence>
+        {showMatchDetail && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowMatchDetail(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-150 shadow-xl relative z-10 space-y-5 text-slate-800"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase ${
+                    showMatchDetail.type === 'found' ? 'bg-indigo-50 text-indigo-700' : 'bg-rose-50 text-rose-700'
+                  }`}>
+                    {showMatchDetail.type === 'found' ? '습득물(found)' : '분실물(lost)'}
+                  </span>
+                  <h3 className="text-sm font-black text-slate-900">제안된 일치 글 원문 확인</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMatchDetail(null)}
+                  className="text-slate-400 hover:text-slate-600 font-bold border-none bg-none text-xs cursor-pointer"
+                >
+                  닫기
+                </button>
+              </div>
+
+              {showMatchDetail.imageUrl && (
+                <div className="rounded-2xl overflow-hidden max-h-48 flex justify-center bg-slate-50 border border-slate-100">
+                  <img 
+                    src={showMatchDetail.imageUrl} 
+                    alt="유사물품 이미지" 
+                    className="max-h-48 object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-3.5 text-xs">
+                <div>
+                  <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">글 제목</h4>
+                  <p className="text-sm font-extrabold text-slate-800 mt-0.5">{showMatchDetail.title}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">위치</h4>
+                    <p className="font-semibold text-slate-700 mt-0.5">📍 {showMatchDetail.location}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">등록일자</h4>
+                    <p className="font-mono text-slate-500 mt-0.5">
+                      {new Date(showMatchDetail.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">상세 정보</h4>
+                  <p className="bg-slate-50 border border-slate-150 p-3 rounded-xl leading-relaxed whitespace-pre-wrap font-medium text-slate-650">
+                    {showMatchDetail.description}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {showMatchDetail.tags.map((tag) => (
+                    <span key={tag} className="bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded-full text-[10px]">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowMatchDetail(null)}
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-all border-none cursor-pointer text-xs"
+                >
+                  확인 후 글 계속 작성하기
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

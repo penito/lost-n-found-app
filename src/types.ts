@@ -8,6 +8,7 @@ export interface User {
   avatarEmoji?: string; // 프로필 아바타 이모지
   profileColor?: string; // 프로필 배경/테마 색상 (예: indigo, rose, emerald, amber, violet, sky)
   bio?: string; // 프로필 상태 메시지/자기소개
+  createdAt?: string; // 회원 가입 일자
 }
 
 export type PostType = 'found' | 'lost'; // 습득물 | 분실물
@@ -73,3 +74,13 @@ export const CATEGORY_TAGS = [
 ] as const;
 
 export type CategoryTag = typeof CATEGORY_TAGS[number];
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type: 'comment' | 'resolved' | 'report_result' | 'match';
+  message: string;
+  postId?: string;
+  isRead: boolean;
+  createdAt: string;
+}

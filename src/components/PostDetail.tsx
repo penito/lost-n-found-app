@@ -1,19 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { Post, Comment, User } from '../types';
 import { getCommentsForPost, addComment, deleteComment, updatePost, getCurrentUser, deletePost, submitReport } from '../db';
-import { X, Calendar, MapPin, Tag, User as UserIcon, MessageSquare, Check, HelpCircle, AlertCircle, ArrowLeft, Trash2, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { X, Calendar, MapPin, Tag, User as UserIcon, MessageSquare, Check, HelpCircle, AlertCircle, ArrowLeft, Trash2, ShieldCheck, ShieldAlert, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { findMatchesForPost } from '../matching';
 
 interface PostDetailProps {
   post: Post;
+  allPosts: Post[];
   activeUser: User | null;
   onBack: () => void;
   onUpdate: () => void; // Trigger list reload when post stats updated (deleted/resolved/etc.)
+  onSelectPost?: (post: Post) => void;
 }
 
-export default function PostDetail({ post, activeUser, onBack, onUpdate }: PostDetailProps) {
+export default function PostDetail({ post, allPosts, activeUser, onBack, onUpdate, onSelectPost }: PostDetailProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newCommentText, setNewCommentText] = useState('');
+
+  // Calculate related matches of opposite type
+  const relatedMatches = React.useMemo(() => {
+    return findMatchesForPost(post, allPosts || [], 0.25).slice(0, 4);
+  }, [post, allPosts]);
   
   // Custom display name/student ID for Guest comment writes
   const [guestName, setGuestName] = useState('');
@@ -370,6 +378,47 @@ export default function PostDetail({ post, activeUser, onBack, onUpdate }: PostD
               </button>
             </div>
           )}
+
+          {/* 🔍 Related Matches Widget */}
+          <div id="related-matches-widget" className="mb-8 p-5 bg-indigo-50/40 rounded-2xl border border-indigo-100/50 space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-600 animate-pulse" />
+              실시간 연관 {post.type === 'lost' ? '습득물(found)' : '분실물(lost)'} 매칭 제안
+            </h3>
+            
+            {relatedMatches.length === 0 ? (
+              <p className="text-xs text-slate-500">현재 이 게시글과 일치하는 유사한 반대 유형의 게시글이 없습니다.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {relatedMatches.map(({ post: matchedPost, similarity, reason }) => (
+                  <div 
+                    key={matchedPost.id}
+                    onClick={() => onSelectPost?.(matchedPost)}
+                    className="bg-white p-3.5 rounded-xl border border-indigo-100 hover:border-indigo-300 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between space-y-2 group"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <span className="text-xs font-black text-slate-800 group-hover:text-indigo-600 transition-colors line-clamp-1">
+                          {matchedPost.title}
+                        </span>
+                        <span className="text-[9px] bg-indigo-50 text-indigo-700 font-extrabold px-1.5 py-0.5 rounded-md shrink-0">
+                          {Math.round(similarity * 100)}% 일치
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 line-clamp-2">
+                        {matchedPost.description}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[9px] text-slate-400 border-t border-slate-50 pt-1.5">
+                      <span>📍 {matchedPost.location}</span>
+                      <span className="text-indigo-600 font-bold">{reason.split(',')[0]}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Comments Section */}
           <div id="comments-section" className="border-t border-neutral-100 pt-8">

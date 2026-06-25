@@ -8,7 +8,8 @@ import {
   deleteReport, 
   deletePost, 
   deleteComment, 
-  assertIsAdmin 
+  assertIsAdmin,
+  getAllCommentsCount
 } from '../db';
 import { 
   Users, 
@@ -22,7 +23,9 @@ import {
   FileText, 
   MessageSquare,
   Sparkles,
-  Lock
+  Lock,
+  BarChart3,
+  TrendingUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -33,7 +36,7 @@ interface AdminTabProps {
   onViewPost: (post: Post) => void;
 }
 
-export default function AdminTab({ activeUser, onPostsUpdated, onViewPost }: AdminTabProps) {
+export default function AdminTab({ activeUser, posts, onPostsUpdated, onViewPost }: AdminTabProps) {
   // --- VERIFICATION STATES ---
   const [isVerifying, setIsVerifying] = useState<boolean>(true);
   const [hasAdminPermission, setHasAdminPermission] = useState<boolean>(false);
@@ -43,6 +46,7 @@ export default function AdminTab({ activeUser, onPostsUpdated, onViewPost }: Adm
   const [loadingUsers, setLoadingUsers] = useState<boolean>(false);
   const [reports, setReports] = useState<Report[]>([]);
   const [loadingReports, setLoadingReports] = useState<boolean>(false);
+  const [totalComments, setTotalComments] = useState<number>(0);
 
   // User Deletion Modal States
   const [userDeleteId, setUserDeleteId] = useState<string | null>(null);
@@ -77,7 +81,19 @@ export default function AdminTab({ activeUser, onPostsUpdated, onViewPost }: Adm
       if (isValid) {
         setHasAdminPermission(true);
         // Load data immediately if verified
-        await Promise.all([loadUsersListLocally(activeUser.id), loadReportsListLocally(activeUser.id)]);
+        const fetchCommentsCount = async () => {
+          try {
+            const count = await getAllCommentsCount();
+            setTotalComments(count);
+          } catch (e) {
+            console.error(e);
+          }
+        };
+        await Promise.all([
+          loadUsersListLocally(activeUser.id), 
+          loadReportsListLocally(activeUser.id),
+          fetchCommentsCount()
+        ]);
       }
     } catch (err) {
       console.error('Admin verification error:', err);
@@ -236,6 +252,55 @@ export default function AdminTab({ activeUser, onPostsUpdated, onViewPost }: Adm
     );
   }
 
+  // --- STATS CALCULATIONS ---
+  const totalUsersCount = users.length;
+  const totalPostsCount = posts?.length || 0;
+  const lostPostsCount = (posts || []).filter(p => p.type === 'lost').length;
+  const foundPostsCount = (posts || []).filter(p => p.type === 'found').length;
+  const resolvedPostsCount = (posts || []).filter(p => p.resolved).length;
+  const unresolvedPostsCount = (posts || []).filter(p => !p.resolved).length;
+  const totalReportsCount = reports.length;
+
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    return d.toISOString().split('T')[0];
+  }).reverse();
+
+  const postsTrendData = last7Days.map(dateStr => {
+    const count = (posts || []).filter(p => p.createdAt && p.createdAt.startsWith(dateStr)).length;
+    const [, month, day] = dateStr.split('-');
+    const label = `${month}/${day}`;
+    return { label, count };
+  });
+
+  const maxPostCount = Math.max(...postsTrendData.map(d => d.count), 1);
+
+  const userRegistrationTrend = React.useMemo(() => {
+    const buckets = [
+      { label: '26~30일 전', daysStart: 30, daysEnd: 26 },
+      { label: '21~25일 전', daysStart: 25, daysEnd: 21 },
+      { label: '16~20일 전', daysStart: 20, daysEnd: 16 },
+      { label: '11~15일 전', daysStart: 15, daysEnd: 11 },
+      { label: '6~10일 전', daysStart: 10, daysEnd: 6 },
+      { label: '최근 5일', daysStart: 5, daysEnd: 0 }
+    ];
+
+    const now = new Date();
+    return buckets.map(b => {
+      const count = users.filter(u => {
+        if (!u.createdAt) return false;
+        const regDate = new Date(u.createdAt);
+        const diffMs = now.getTime() - regDate.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        return diffDays >= b.daysEnd && diffDays <= b.daysStart;
+      }).length;
+      return { label: b.label, count };
+    });
+  }, [users]);
+
+  const maxUserCount = Math.max(...userRegistrationTrend.map(d => d.count), 1);
+
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
       
@@ -289,6 +354,165 @@ export default function AdminTab({ activeUser, onPostsUpdated, onViewPost }: Adm
           <span className="text-xs font-bold leading-normal">{alert.text}</span>
         </motion.div>
       )}
+
+      {/* C. SYSTEM STATISTICS DASHBOARD */}
+      <div id="admin-stats-dashboard" className="bg-slate-50 rounded-3xl border border-slate-200 p-6 md:p-8 space-y-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-indigo-650" />
+              실시간 시스템 통계 & 동향 대시보드
+            </h3>
+            <p className="text-slate-500 text-xs">플랫폼 내의 활성 지표와 주간 콘텐츠 업로드 흐름을 실시간으로 추적합니다.</p>
+          </div>
+          <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-full shrink-0 max-w-fit">
+            <TrendingUp className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
+            <span className="text-[10px] text-indigo-700 font-extrabold font-mono">Real-time Telemetry</span>
+          </div>
+        </div>
+
+        {/* 8 Stats Cards Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* 1. 총 가입자 수 */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-3xs flex flex-col justify-between hover:shadow-xs transition-all">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">총 가입자 수</span>
+            <div className="flex items-baseline justify-between mt-2">
+              <span className="text-xl md:text-2xl font-black text-slate-800 font-mono">{totalUsersCount}</span>
+              <span className="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded-md">학우</span>
+            </div>
+          </div>
+
+          {/* 2. 총 게시글 수 */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-3xs flex flex-col justify-between hover:shadow-xs transition-all">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">총 게시글 수</span>
+            <div className="flex items-baseline justify-between mt-2">
+              <span className="text-xl md:text-2xl font-black text-slate-800 font-mono">{totalPostsCount}</span>
+              <span className="text-[10px] bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-md">건</span>
+            </div>
+          </div>
+
+          {/* 3. 분실물 수 */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-3xs flex flex-col justify-between hover:shadow-xs transition-all">
+            <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider block">분실물(lost)</span>
+            <div className="flex items-baseline justify-between mt-2">
+              <span className="text-xl md:text-2xl font-black text-amber-600 font-mono">{lostPostsCount}</span>
+              <span className="text-[10px] bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded-md">등록</span>
+            </div>
+          </div>
+
+          {/* 4. 습득물 수 */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-3xs flex flex-col justify-between hover:shadow-xs transition-all">
+            <span className="text-[10px] font-black text-teal-500 uppercase tracking-wider block">습득물(found)</span>
+            <div className="flex items-baseline justify-between mt-2">
+              <span className="text-xl md:text-2xl font-black text-teal-600 font-mono">{foundPostsCount}</span>
+              <span className="text-[10px] bg-teal-50 text-teal-700 font-bold px-2 py-0.5 rounded-md">등록</span>
+            </div>
+          </div>
+
+          {/* 5. 해결 완료 수 */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-3xs flex flex-col justify-between hover:shadow-xs transition-all">
+            <span className="text-[10px] font-black text-emerald-500 uppercase tracking-wider block">해결 완료</span>
+            <div className="flex items-baseline justify-between mt-2">
+              <span className="text-xl md:text-2xl font-black text-emerald-600 font-mono">{resolvedPostsCount}</span>
+              <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-md">완료</span>
+            </div>
+          </div>
+
+          {/* 6. 해결 미완료 수 */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-3xs flex flex-col justify-between hover:shadow-xs transition-all">
+            <span className="text-[10px] font-black text-rose-500 uppercase tracking-wider block">해결 미완료</span>
+            <div className="flex items-baseline justify-between mt-2">
+              <span className="text-xl md:text-2xl font-black text-rose-600 font-mono">{unresolvedPostsCount}</span>
+              <span className="text-[10px] bg-rose-50 text-rose-700 font-bold px-2 py-0.5 rounded-md">대기</span>
+            </div>
+          </div>
+
+          {/* 7. 총 댓글 수 */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-3xs flex flex-col justify-between hover:shadow-xs transition-all">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">총 댓글 수</span>
+            <div className="flex items-baseline justify-between mt-2">
+              <span className="text-xl md:text-2xl font-black text-slate-800 font-mono">{totalComments}</span>
+              <span className="text-[10px] bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-md">피드</span>
+            </div>
+          </div>
+
+          {/* 8. 총 신고 접수 수 */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-3xs flex flex-col justify-between hover:shadow-xs transition-all">
+            <span className="text-[10px] font-black text-rose-600 uppercase tracking-wider block">총 신고 접수 수</span>
+            <div className="flex items-baseline justify-between mt-2">
+              <span className="text-xl md:text-2xl font-black text-rose-700 font-mono">{totalReportsCount}</span>
+              <span className="text-[10px] bg-rose-50/50 text-rose-700 font-bold px-2 py-0.5 rounded-md">신고</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Charts Section (2 Columns Grid) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Chart 1: 최근 7일간의 게시글 생성 추이 */}
+          <div className="bg-white p-5 rounded-3xl border border-slate-150 flex flex-col justify-between space-y-4">
+            <div className="space-y-1">
+              <h4 className="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                📅 최근 7일간의 게시글 생성 추이
+              </h4>
+              <p className="text-[10px] text-slate-400">날짜별 새로 등록된 분실물/습득물 통합 추세입니다.</p>
+            </div>
+
+            {/* Custom SVG/Bar Chart */}
+            <div className="h-32 flex items-end justify-between gap-2 pt-4 px-2">
+              {postsTrendData.map((d, index) => {
+                const pct = (d.count / maxPostCount) * 100;
+                return (
+                  <div key={index} className="flex-1 flex flex-col items-center gap-1.5 group h-full justify-end">
+                    <span className="text-[9px] font-extrabold text-slate-500 font-mono opacity-0 group-hover:opacity-100 transition-opacity">
+                      {d.count}
+                    </span>
+                    <div className="w-full bg-slate-50 rounded-t-lg overflow-hidden flex items-end h-20 relative">
+                      <div 
+                        style={{ height: `${Math.max(pct, 5)}%` }}
+                        className="w-full bg-gradient-to-t from-indigo-500 to-indigo-600 rounded-t-lg transition-all duration-500 group-hover:brightness-110"
+                      />
+                    </div>
+                    <span className="text-[9px] text-slate-400 font-bold font-mono tracking-tighter">
+                      {d.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Chart 2: 최근 30일간의 가입자 가입 추이 */}
+          <div className="bg-white p-5 rounded-3xl border border-slate-150 flex flex-col justify-between space-y-4">
+            <div className="space-y-1">
+              <h4 className="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                📈 최근 30일간의 회원 가입 동향
+              </h4>
+              <p className="text-[10px] text-slate-400">가입 일자 분포를 구간별 통계로 보여줍니다.</p>
+            </div>
+
+            {/* Custom Horizontal Bar Charts */}
+            <div className="space-y-2.5 pt-2">
+              {userRegistrationTrend.map((d, index) => {
+                const pct = (d.count / maxUserCount) * 100;
+                return (
+                  <div key={index} className="space-y-1 flex flex-col">
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold">
+                      <span>{d.label}</span>
+                      <span className="font-mono font-extrabold text-indigo-700">{d.count}명</span>
+                    </div>
+                    <div className="h-2 bg-slate-50 border border-slate-100 rounded-full overflow-hidden">
+                      <div 
+                        style={{ width: `${Math.max(pct, 2)}%` }}
+                        className="h-full bg-gradient-to-r from-teal-400 to-teal-500 rounded-full transition-all duration-500"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* B. BENTO LAYOUT MODULES */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

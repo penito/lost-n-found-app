@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { User, Post } from './types';
-import { getCurrentUser, getPosts, initializeDB, logoutUser } from './db';
+import { User, Post, AppNotification } from './types';
+import { getCurrentUser, getPosts, initializeDB, logoutUser, getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from './db';
 import RegisterTab from './components/RegisterTab';
 import SearchTab from './components/SearchTab';
 import MyInfoTab from './components/MyInfoTab';
 import PostDetail from './components/PostDetail';
 import AdminTab from './components/AdminTab';
 import ResetPassword from './components/ResetPassword';
-import { Search, PlusCircle, User as UserIcon, LogIn, Sparkles, BookOpen, Clock, ShieldAlert } from 'lucide-react';
+import { Search, PlusCircle, User as UserIcon, LogIn, Sparkles, BookOpen, Clock, ShieldAlert, Bell } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
 import jkLogo from '../JK.png';
 
@@ -27,6 +28,52 @@ export default function App() {
 
   // Time ticker state for visual polish
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Notification states
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  const loadNotifications = async () => {
+    if (activeUser) {
+      try {
+        const list = await getNotifications(activeUser.id);
+        setNotifications(list);
+      } catch (err) {
+        console.error('Failed to load notifications:', err);
+      }
+    } else {
+      setNotifications([]);
+    }
+  };
+
+  useEffect(() => {
+    loadNotifications();
+    const interval = setInterval(() => {
+      loadNotifications();
+    }, 15000); // Poll every 15 seconds
+    return () => clearInterval(interval);
+  }, [activeUser]);
+
+  const handleMarkAllAsRead = async () => {
+    if (activeUser) {
+      await markAllNotificationsAsRead(activeUser.id);
+      loadNotifications();
+    }
+  };
+
+  const handleNotificationClick = async (notif: AppNotification) => {
+    await markNotificationAsRead(notif.id);
+    loadNotifications();
+    if (notif.postId) {
+      const targetPost = posts.find(p => p.id === notif.postId);
+      if (targetPost) {
+        setSelectedPost(targetPost);
+        setShowNotifications(false);
+      }
+    }
+  };
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   // Redirect to /reset-password if recovery token is in hash or search params on load
   useEffect(() => {
@@ -160,6 +207,86 @@ export default function App() {
 
             {/* Right hand action/user welcome notification */}
             <div className="flex items-center gap-3">
+              {activeUser && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    id="bell-notification-btn"
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className="p-2 text-slate-500 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 border border-slate-100 rounded-full transition-all cursor-pointer relative flex items-center justify-center"
+                  >
+                    <Bell className="w-4 h-4" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white font-extrabold text-[9px] w-5 h-5 rounded-full flex items-center justify-center animate-bounce shadow-3xs">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Notifications Popover Dropdown */}
+                  <AnimatePresence>
+                    {showNotifications && (
+                      <>
+                        {/* Overlay backdrop to close */}
+                        <div 
+                          className="fixed inset-0 z-40" 
+                          onClick={() => setShowNotifications(false)} 
+                        />
+                        <motion.div
+                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                          className="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-2xl border border-slate-150 shadow-xl z-50 overflow-hidden text-slate-800"
+                        >
+                          <div className="p-3.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                            <span className="text-xs font-black text-slate-900">알림 센터</span>
+                            {unreadCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={handleMarkAllAsRead}
+                                className="text-[10px] text-indigo-600 hover:text-indigo-800 font-extrabold border-none bg-none cursor-pointer"
+                              >
+                                모두 읽음
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
+                            {notifications.length === 0 ? (
+                              <div className="p-8 text-center text-slate-400 text-xs font-medium">
+                                도착한 알림이 없습니다.
+                              </div>
+                            ) : (
+                              notifications.map((notif) => (
+                                <div
+                                  key={notif.id}
+                                  onClick={() => handleNotificationClick(notif)}
+                                  className={`p-3 text-xs leading-normal transition-all cursor-pointer flex gap-2.5 items-start text-left ${
+                                    notif.isRead 
+                                      ? 'bg-white hover:bg-slate-50 text-slate-500' 
+                                      : 'bg-indigo-50/50 hover:bg-indigo-50 text-slate-800 font-bold border-l-2 border-indigo-500'
+                                  }`}
+                                >
+                                  <div className="space-y-1 w-full">
+                                    <p className="line-clamp-3">{notif.message}</p>
+                                    <span className="text-[9px] text-slate-400 block font-mono">
+                                      {new Date(notif.createdAt).toLocaleTimeString('ko-KR', {
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
               {activeUser ? (
                 <div 
                   id="user-badge-nav"
@@ -272,9 +399,11 @@ export default function App() {
         ) : selectedPost ? (
           <PostDetail
             post={selectedPost}
+            allPosts={posts}
             activeUser={activeUser}
             onBack={() => setSelectedPost(null)}
             onUpdate={handlePostsUpdated}
+            onSelectPost={setSelectedPost}
           />
         ) : (
           <div>
@@ -294,6 +423,7 @@ export default function App() {
             {activeTab === 'register' && (
               <RegisterTab
                 activeUser={activeUser}
+                posts={posts}
                 onRegisterSuccess={() => {
                   handlePostsUpdated();
                   setActiveTab('search'); // redirect back to search dynamically to see latest post

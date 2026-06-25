@@ -1,4 +1,4 @@
-import { Post, Comment, User, Report } from './types';
+import { Post, Comment, User, Report, AppNotification } from './types';
 import { supabase } from './supabaseClient';
 
 // Storage key to cache the currently logged-in user session in the client browser
@@ -56,7 +56,8 @@ export const getUsers = async (adminId?: string): Promise<User[]> => {
       isAdmin: !!d.is_admin,
       avatarEmoji: d.avatar_emoji || '🎒',
       profileColor: d.profile_color || 'indigo',
-      bio: d.bio || ''
+      bio: d.bio || '',
+      createdAt: d.created_at || new Date().toISOString()
     }));
   } catch (err) {
     console.error('getUsers error:', err);
@@ -398,6 +399,20 @@ export const updatePost = async (
 
     if (error) throw error;
 
+    // Trigger Notification for resolution
+    if (updatedFields.resolved === true) {
+      try {
+        await addNotification(
+          data.author_id,
+          'resolved',
+          `🎉 회원님의 게시글 [${data.title}]이(가) 해결 완료 처리되었습니다!`,
+          postId
+        );
+      } catch (notifErr) {
+        console.error('Failed to trigger resolution notification:', notifErr);
+      }
+    }
+
     const { data: authorProfile } = await supabase
       .from('profiles')
       .select('*')
@@ -540,6 +555,26 @@ export const addComment = async (
       .single();
 
     if (error) throw error;
+
+    // Trigger Notification for the post owner
+    try {
+      const { data: postData } = await supabase
+        .from('posts')
+        .select('author_id, title')
+        .eq('id', postId)
+        .maybeSingle();
+
+      if (postData && postData.author_id && postData.author_id !== author.id) {
+        await addNotification(
+          postData.author_id,
+          'comment',
+          `💬 [${postData.title}] 게시글에 새로운 댓글이 달렸습니다: "${content.substring(0, 15)}${content.length > 15 ? '...' : ''}"`,
+          postId
+        );
+      }
+    } catch (notifErr) {
+      console.error('Failed to trigger comment notification:', notifErr);
+    }
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -708,12 +743,32 @@ export const resolveReport = async (reportId: string, adminId: string): Promise<
       return { success: false, message: '권한 검증 오류: 관리자 계정만 신고 처리를 수정할 수 있습니다.' };
     }
 
+    const { data: reportData } = await supabase
+      .from('reports')
+      .select('reporter_id, target_title_or_content')
+      .eq('id', reportId)
+      .maybeSingle();
+
     const { error } = await supabase
       .from('reports')
       .update({ resolved: true })
       .eq('id', reportId);
 
     if (error) throw error;
+
+    // Trigger report result notification for reporter
+    if (reportData && reportData.reporter_id) {
+      try {
+        await addNotification(
+          reportData.reporter_id,
+          'report_result',
+          `🚨 접수하신 신고 건([${reportData.target_title_or_content.substring(0, 15)}...])에 대해 관리자의 검토 및 조치가 완료되었습니다.`
+        );
+      } catch (notifErr) {
+        console.error('Failed to trigger report notification:', notifErr);
+      }
+    }
+
     return { success: true, message: '신고 목록 해결 완료.' };
   } catch (error: any) {
     return { success: false, message: error.message || '신고 해결 중 오류.' };
@@ -798,4 +853,186 @@ export const sendPasswordResetEmail = async (email: string): Promise<{ success: 
     return { success: false, message: err.message || '비밀번호 재설정 이메일 요청에 실패했습니다.' };
   }
 };
+
+/**
+ * Queries total count of comments across all posts.
+ */
+export const getAllCommentsCount = async (): Promise<number> => {
+  try {
+    const { count, error } = await supabase
+      .from('comments')
+      .select('*', { count: 'exact', head: true });
+    if (error) throw error;
+    return count || 0;
+  } catch (err) {
+    console.warn('Error counting comments:', err);
+    return 0;
+  }
+};
+
+
+// --- NOTIFICATIONS MANAGEMENT SYSTEM ---
+
+const NOTIFICATIONS_STORAGE_KEY = 'school_lost_found_notifications_fallback';
+
+export const getNotifications = async (userId: string): Promise<AppNotification[]> => {
+  if (!userId) return [];
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    if (!data) return [];
+
+    return data.map((d: any) => ({
+      id: d.id,
+      userId: d.user_id,
+      type: d.type as any,
+      message: d.message,
+      postId: d.post_id || undefined,
+      isRead: !!d.is_read,
+      createdAt: d.created_at
+    }));
+  } catch (err) {
+    console.warn('Supabase notifications error, falling back to localStorage:', err);
+    try {
+      const localData = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+      if (localData) {
+        const parsed: AppNotification[] = JSON.parse(localData);
+        return parsed
+          .filter(n => n.userId === userId)
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      }
+    } catch (localErr) {
+      console.error('LocalStorage fallback error:', localErr);
+    }
+    return [];
+  }
+};
+
+export const addNotification = async (
+  userId: string,
+  type: 'comment' | 'resolved' | 'report_result' | 'match',
+  message: string,
+  postId?: string
+): Promise<AppNotification | null> => {
+  if (!userId || userId === 'guest') return null;
+  const randomId = Math.random().toString(36).substr(2, 9);
+  const newNotification: AppNotification = {
+    id: randomId,
+    userId,
+    type,
+    message,
+    postId,
+    isRead: false,
+    createdAt: new Date().toISOString()
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert({
+        id: randomId,
+        user_id: userId,
+        type,
+        message,
+        post_id: postId || null,
+        is_read: false
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    
+    return {
+      id: data.id,
+      userId: data.user_id,
+      type: data.type as any,
+      message: data.message,
+      postId: data.post_id || undefined,
+      isRead: !!data.is_read,
+      createdAt: data.created_at
+    };
+  } catch (err) {
+    console.warn('Supabase addNotification error, saving to localStorage:', err);
+    try {
+      const localData = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+      const list: AppNotification[] = localData ? JSON.parse(localData) : [];
+      list.push(newNotification);
+      localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(list));
+      return newNotification;
+    } catch (localErr) {
+      console.error('LocalStorage fallback error:', localErr);
+    }
+    return null;
+  }
+};
+
+export const markNotificationAsRead = async (notificationId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', notificationId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn('Supabase markNotificationAsRead error, falling back to localStorage:', err);
+    try {
+      const localData = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+      if (localData) {
+        const list: AppNotification[] = JSON.parse(localData);
+        const item = list.find(n => n.id === notificationId);
+        if (item) {
+          item.isRead = true;
+          localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(list));
+          return true;
+        }
+      }
+    } catch (localErr) {
+      console.error('LocalStorage fallback error:', localErr);
+    }
+    return false;
+  }
+};
+
+export const markAllNotificationsAsRead = async (userId: string): Promise<boolean> => {
+  if (!userId) return false;
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn('Supabase markAllNotificationsAsRead error, falling back to localStorage:', err);
+    try {
+      const localData = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+      if (localData) {
+        const list: AppNotification[] = JSON.parse(localData);
+        let updated = false;
+        list.forEach(n => {
+          if (n.userId === userId && !n.isRead) {
+            n.isRead = true;
+            updated = true;
+          }
+        });
+        if (updated) {
+          localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(list));
+        }
+        return true;
+      }
+    } catch (localErr) {
+      console.error('LocalStorage fallback error:', localErr);
+    }
+    return false;
+  }
+};
+
 
